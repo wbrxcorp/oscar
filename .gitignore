@@ -1,0 +1,10 @@
+*.pyc
+*~
+*#
+*.bak
+etc
+.settings
+oscar.min.js
+oscar.tar
+private.key
+
