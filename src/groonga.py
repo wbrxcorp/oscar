@@ -75,26 +75,21 @@ def load(ctx, table_name, values):
 def select(ctx, table_name, **kwargs):
     with command(ctx, "select") as cmd:
         def format_query(query):
-            if isinstance(query, str): return query
+            if not isinstance(query, dict): return query
             conditions = ['%s:"%s"' % (column, cmd.escape_query(query[column])) for column in query]
             return " ".join(conditions)
         cmd.add_argument("table", table_name)
         for key,value in kwargs.items():
+            if not value: continue
             if key == "query": value = format_query(value)
             cmd.add_argument(key, str(value))
         rst = json.loads(cmd.execute())
     if len(rst) == 0:
         raise Exception("Query error")
-    names = map(lambda x:x[0], rst[0][1])
-    def list2dict(row):
-        d = {}
-        for i in range(len(names)):
-            d[names[i]] = row[i]
-        return d
-    return (rst[0][0][0], map(list2dict, rst[0][2:]))
+    return (rst[0][0][0], rst[0][2:])
 
-def get(ctx, table_name, key):
-    rst = select(ctx, table_name, query = '_key:"%s"' % key)[1]
+def get(ctx, table_name, key, output_columns = None):
+    rst = select(ctx, table_name, query = '_key:"%s"' % key, output_columns=output_columns)[1]
     return rst[0] if len(rst) > 0 else None
 
 def delete(ctx, table_name, key):

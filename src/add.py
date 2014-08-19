@@ -11,6 +11,14 @@ import oscar, groonga
 def parser_setup(parser):
     parser.add_argument("file", nargs="+")
 
+def get_ancestors(context, parent_uuid):
+    ancestors = set()
+    while parent_uuid and parent_uuid != "ROOT":
+        ancestors.add(parent_uuid)
+        parent = groonga.get(context, "Entries", parent_uuid, "parent")
+        parent_uuid = parent[0] if parent else None
+    return list(ancestors)
+
 def _add(base_dir, path_name, context):
     real_path = oscar.get_real_path(base_dir, path_name)
     if os.path.islink(real_path): return None
@@ -21,9 +29,9 @@ def _add(base_dir, path_name, context):
         if len(path_elements) == 0: return
         name = path_elements[0]
         query = {"parent":parent_uuid if parent_uuid else "ROOT", "name":name }
-        count, rows = groonga.select(context, "Entries", query = query)
+        count, rows = groonga.select(context, "Entries", query = query, output_columns="_key")
         for row in rows:
-            _key = row["_key"]
+            _key = row[0]
             #log.debug(_key)
             if _key in loop_detector:
                 logging.error("Loop DETECTED!! %s" % _key)
@@ -37,16 +45,22 @@ def _add(base_dir, path_name, context):
             scan_same_name_entries_recursively(path_elements[1:], _key, os.path.join(dirname, name), loop_detector)
     scan_same_name_entries_recursively(re.sub(r'^\/+', "", os.path.normpath(path_name)).split("/"))
 
-    entry = groonga.get(context, "Entries", uuid)
+    entry = groonga.get(context, "Entries", uuid, "name,parent,mtime")
     basename = oscar.get_basename(path_name)
     if entry:
+        entry_name = entry[0]
+        entry_parent = entry[1]
+        entry_mtime = entry[2]
         # データベース上に既にエントリが存在する場合は、ファイル名とmtimeをチェックして必要ならファイル名を変更したり dirtyフラグを付けたりする
         obj_to_update = {"_key":uuid}
         # 名前の変更も dirtyにだけして後に任せる手はあるが、小さい処理なのでここでやってしまう
-        if entry["name"].encode("utf-8") != basename: obj_to_update["name"] = basename
+        if entry_name.encode("utf-8") != basename: obj_to_update["name"] = basename
+        # parentを辿って得たパス名と実際のパス名を比較し、異なる場合はparent及びancestorsを更新する
+        if os.path.dirname(oscar.get_path_name(context, uuid).encode("utf-8")) != os.path.dirname(path_name):
+            obj_to_update["ancestors"] = get_ancestors(context, entry_parent)
         try:
             stat = os.stat(real_path)
-            if int(entry["mtime"]) != stat.st_mtime:
+            if int(entry_mtime) != stat.st_mtime:
                 obj_to_update["dirty"] = True
         except OSError: # タッチの差でファイルが消えてたりしたとき
             obj_to_update["dirty"] = True
@@ -56,7 +70,7 @@ def _add(base_dir, path_name, context):
         # データベース上にエントリが存在しない場合は、再帰的に最上位のディレクトリまで _process_entryを実行したのちに自分自身を dirty=trueにて登録する
         parent_dir = oscar.get_parent_dir(path_name)
         parent_uuid = _add(base_dir, parent_dir, context) if parent_dir else "ROOT"
-        obj_to_insert = {"_key":uuid, "parent":parent_uuid, "name":basename, "dirty":True}
+        obj_to_insert = {"_key":uuid, "parent":parent_uuid, "name":basename, "ancestors":get_ancestors(context, parent_uuid), "dirty":True}
         if os.path.isdir(real_path):
             obj_to_insert["size"] = -1
             obj_to_insert["dirty"] = False  # ディレクトリの場合は中身まで見る必要がないので cleanで登録

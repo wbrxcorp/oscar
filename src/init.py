@@ -21,17 +21,19 @@ schema = [
     # Entries(_key:uuid,parent,name,fulltext=>Fulltext)
     "table_create --name Entries --flags TABLE_PAT_KEY --key_type ShortText",
     "column_create --table Entries --name parent --flags COLUMN_SCALAR --type Entries",
+    "column_create --table Entries --name ancestors --flags COLUMN_VECTOR --type Entries", 
     "column_create --table Entries --name name --flags COLUMN_SCALAR --type ShortText",
     "column_create --table Entries --name fulltext --type Fulltext",
     "column_create --table Entries --name mtime --type Time",
     "column_create --table Entries --name size --type Int64",  # -1 = directory
     "column_create --table Entries --name dirty --flags COLUMN_SCALAR --type Bool",
+    # entry ref index
+    "column_create --table Entries --name children --flags COLUMN_INDEX --type Entries --source parent",
+    # ancestors index
+    "column_create --table Entries --name descendants --flags COLUMN_INDEX --type Entries --source ancestors",
 
     # Fulltext-to-entries
     "column_create --table Fulltext --name entries --flags COLUMN_INDEX --type Entries --source fulltext",
-    
-    # entry ref index
-    "column_create --table Entries --name children --flags COLUMN_INDEX --type Entries --source parent",
 
     # Terms(fulltext_content:index of Fulltext.content)
     "table_create --name Terms --flags TABLE_PAT_KEY --key_type ShortText %s --normalizer NormalizerAuto" % tokenizer,

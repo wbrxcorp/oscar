@@ -35,7 +35,7 @@ def _walk(base_dir, context):
         total, rows = groonga.select(context, "Entries", output_columns="_key", filter="_key != 'ROOT'", limit=10000, offset=offset)
         if len(rows) == 0: break
         for row in rows:
-            uuid = row["_key"]
+            uuid = row[0]
             if uuid not in uuid_set:
                 oscar.mark_as_dirty(context, uuid)
                 logging.debug("%s marked as dirty" % uuid)

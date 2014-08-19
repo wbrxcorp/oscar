@@ -55,7 +55,7 @@ def _update(base_dir, context, concurrency = 1):
         total, rows = groonga.select(context, "Entries", output_columns="_key,size", filter="dirty", limit=10000)
         if len(rows) == 0: break
         for row in rows:
-            uuid, size = row["_key"], row["size"]
+            uuid, size = row[0], row[1]
             path_name = oscar.get_path_name(context, uuid)
             real_path = os.path.join(base_dir, path_name)
             if size < 0 and os.path.isdir(real_path) and oscar.get_object_uuid(real_path) == uuid:
