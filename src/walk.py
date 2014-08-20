@@ -18,6 +18,7 @@ def _walk(base_dir, context):
         r = re.sub(r'^\/+', "", root[len(base_dir):])
         if r.startswith('.'): continue
         for file in files:
+            if file.startswith('.'): continue
             filename = os.path.join(r, file)
             uuid = add.add(base_dir, filename, context)
             uuid_set.add(uuid)

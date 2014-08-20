@@ -157,7 +157,6 @@ def share_search(share_name):
     start_time = time.clock()
     count, rows = search.search(share_path, path, query=q, offset=offset, limit=limit)
     for row in rows:
-        print row
         row["exists"] = os.path.exists(os.path.join(share_path, row["dir"], row["name"].encode("utf-8")))
     search_time = time.clock() - start_time
     return flask.jsonify({"q":q, "time":search_time, "count":count, "rows":rows})
