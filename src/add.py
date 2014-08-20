@@ -51,6 +51,7 @@ def _add(base_dir, path_name, context):
 
     entry = groonga.get(context, "Entries", uuid, "name,parent,mtime,ancestors")
     basename = oscar.get_basename(path_name)
+    if basename.startswith("."): return None    # . で始まるファイルは無視しよう。
     if entry:
         entry_name,entry_parent,entry_mtime,entry_ancestors = entry
         # データベース上に既にエントリが存在する場合は、ファイル名とmtimeとparentをチェックして必要なら変更したり dirtyフラグを付けたりする
