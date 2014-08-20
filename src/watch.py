@@ -61,14 +61,19 @@ def watch(dirs):
 
 def update_loop():
     while True:
-        with condition:
-            if len(basedirs) == 0: condition.wait()
-            base_dir = basedirs.pop()
-        if not os.path.isdir(base_dir):
-            logging.error("Directory %s does not exist. deleted, perhaps?" % base_dir)
-            continue
-        logging.debug("updating %s" % base_dir)
-        update.update(base_dir, concurrency = multiprocessing.cpu_count() + 1)
+        try:
+            with condition:
+                if len(basedirs) == 0: condition.wait()
+                base_dir = basedirs.pop()
+            if not os.path.isdir(base_dir):
+                logging.error("Directory %s does not exist. deleted, perhaps?" % base_dir)
+                continue
+            logging.debug("updating %s" % base_dir)
+            update.update(base_dir, concurrency = multiprocessing.cpu_count() + 1)
+        except:
+            # なんか例外の時でもスレッドが終了してしまわないようにログだけ残して継続する
+            logging.exception("update_loop")
+            time.sleep(1)
 
 def run(args):
     global basedirs,condition

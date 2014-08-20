@@ -63,7 +63,10 @@ def share_delete(share_name):
     if not os.path.isdir(share_path): return flask.jsonify({"success":False, "info":"DIRNOTEXIST"})
     if not samba.unregister_share(share_name):
         return flask.jsonify({"success":False, "info":"REMOVESHAREFAIL"})
-    shutil.rmtree(share_path, ignore_errors=True)
+    database_file = oscar.get_database_name(share_path)
+    if os.path.exists(database_file):
+        shutil.move(database_file, database_file + ".removed") # まずはデータベースファイルをリネームしてアクセスできなくする
+    shutil.rmtree(share_path, ignore_errors=True) # そのあとでゆっくりと削除
     return flask.jsonify({"success":True, "info":None})
 
 @app.route("/user")
