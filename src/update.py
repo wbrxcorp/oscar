@@ -32,14 +32,16 @@ def get_file_info(args):
 
 def get_file_contents(args):
     hashval, real_path = args
+    if os.path.basename(real_path).startswith("."):
+        return None # ドットファイルの中身は見ない
 
     try:
-        title, content = extract.extract(real_path)
+        rst = extract.extract(real_path)
     except: # 多様なフォーマットを扱うためどういう例外が起こるかまるでわからん
         logging.exception("extract") 
         return None
 
-    return (hashval, title, content)
+    return (hashval, rst[0], rst[1]) if rst else None
 
 def concurrent_map(func, lst, concurrency = 1):
     rst = None

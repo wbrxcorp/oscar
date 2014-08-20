@@ -55,7 +55,7 @@ def extract(filename):
         if filename.lower().endswith(suffix):
             extractor_func = module.do
             break
-    return extractor_func(filename) if extractor_func else (None, None)
+    return extractor_func(filename) if extractor_func else None
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
