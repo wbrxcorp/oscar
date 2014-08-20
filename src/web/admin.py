@@ -33,7 +33,7 @@ def share_get(share_name):
 @app.route("/share/<share_name>/create", methods=['POST'])
 def share_create(share_name):
     # TODO: disable some characters to use http://internet.designcross.jp/2010/02/blog-post.html
-    if share_name.statrswith(".") or share_name.statrswith("_") or share_name == "static":
+    if share_name.startswith(".") or share_name.startswith("_") or share_name == "static":
         return flask.jsonify({"success":False, "info":"INVALIDNAME"})
     params = flask.request.json
     if samba.share_exists(share_name):
