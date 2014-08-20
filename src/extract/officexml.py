@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 '''
 Created on 2014/08/15
 
@@ -7,7 +8,7 @@ emerge lxml
 '''
 
 import re,zipfile
-import lxml
+import lxml.etree
 import extract
 
 interested_components = map(lambda x:re.compile(x), [r"^word/document\.xml$", "^xl/sharedStrings\.xml", "^ppt/slides/slide[0-9]+\.xml"])
@@ -38,7 +39,7 @@ def zip2text(filename):
             text += xml2text(z.open(file)) + "\n"
     return text
 
-def officexml(filename):
+def do(filename):
     text = zip2text(filename)
     if not text: raise extract.ExtractionFailureException("Empty document")
     return ("", extract.utf8_cleanup(text))

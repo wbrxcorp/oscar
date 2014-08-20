@@ -13,9 +13,8 @@ blocksize=65536
 def parser_setup(parser):
     parser.add_argument("base_dir", nargs="+")
 
-def scan_file(args):
+def get_file_info(args):
     uuid, real_path = args
-    
     hasher = hashlib.sha1()
     try:
         with open(real_path, "rb") as afile:
@@ -26,12 +25,21 @@ def scan_file(args):
             while len(buf) > 0:
                 hasher.update(buf)
                 buf = afile.read(blocksize)
-        hashval = hasher.hexdigest()
-    except:
-        return (uuid, False, None, None, None, None)
-    
-    title, content = extract.extract(real_path)
-    return (uuid, True, size, mtime, hashval, title, content)
+    except:# ファイルが絶妙なタイミングで削除されたなど
+        logging.exception("get_file_info") 
+        return None
+    return (uuid, real_path, size, mtime, hasher.hexdigest())
+
+def get_file_contents(args):
+    hashval, real_path = args
+
+    try:
+        title, content = extract.extract(real_path)
+    except: # 多様なフォーマットを扱うためどういう例外が起こるかまるでわからん
+        logging.exception("extract") 
+        return None
+
+    return (hashval, title, content)
 
 def concurrent_map(func, lst, concurrency = 1):
     rst = None
@@ -52,12 +60,16 @@ def _update(base_dir, context, concurrency = 1):
     while True:
         files_to_update = []
         
-        total, rows = groonga.select(context, "Entries", output_columns="_key,size", filter="dirty", limit=10000)
+        total, rows = groonga.select(context, "Entries", output_columns="_key,parent,size", filter="dirty", limit=10000)
         if len(rows) == 0: break
         for row in rows:
-            uuid, size = row[0], row[1]
+            uuid, parent, size = row
+            if parent == "":    # parentが "" なレコードは orphanなので無条件に削除対象となる
+                delete.delete_by_uuid(uuid)
+                continue
             path_name = oscar.get_path_name(context, uuid)
             real_path = os.path.join(base_dir, path_name)
+            print real_path
             if size < 0 and os.path.isdir(real_path) and oscar.get_object_uuid(real_path) == uuid:
                 oscar.mark_as_clean(context, uuid)
             elif os.path.isfile(real_path) and oscar.get_object_uuid(real_path) == uuid:
@@ -65,14 +77,15 @@ def _update(base_dir, context, concurrency = 1):
             else:
                 delete.delete_by_uuid(context, uuid)
         
-        for uuid, valid, size, mtime, hashval, title, content in concurrent_map(scan_file, files_to_update, concurrency):
-            if not valid: continue
-            if content:
-                groonga.load(context, "Fulltext", {"_key":hashval, "title":title, "content":content})
-            groonga.load(context, "Entries", {"_key":uuid, "size":size, "mtime":mtime, "fulltext":hashval})
+        files_to_update_details = filter(lambda x:x is not None, concurrent_map(get_file_info, files_to_update, concurrency))
+        files_to_extract_contents = filter(lambda x:groonga.get(context, "Fulltext", x[0], "_key") is None, map(lambda x:(x[4],x[1]), files_to_update_details))
+        for hashval, title, content in filter(lambda x:x is not None, concurrent_map(get_file_contents, files_to_extract_contents, concurrency)):
+            groonga.load(context, "Fulltext", {"_key":hashval, "title":title, "content":content})
 
-        if len(rows) < total:
-            time.sleep(10) # 次のループまで10秒インターバル
+        for uuid, real_path, size, mtime, hashval in files_to_update_details:
+            groonga.load(context, "Entries", {"_key":uuid, "size":size, "mtime":mtime, "fulltext":hashval,"dirty":False})
+
+        time.sleep(1) # 最悪、無限ループした際にCPUを使い潰すのを防ぐ
 
 def update(base_dir, context = None, concurrency = 1):
     if context:

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-import os,atexit,json
+import os,atexit,json,logging
 
 local_lib = "/usr/local/lib" if os.path.isdir("/usr/local/lib") else "/usr/local/lib64"
 os.environ['GI_TYPELIB_PATH'] = '%s/girepository-1.0' % local_lib
@@ -67,6 +67,7 @@ def execute(ctx, cmd):
     return result == "true"
 
 def load(ctx, table_name, values):
+    logging.debug(values)
     with command(ctx, "load") as cmd:
         cmd.add_argument("table", table_name)
         cmd.add_argument("values", to_json(values if isinstance(values, list) else [values]))
@@ -76,13 +77,13 @@ def select(ctx, table_name, **kwargs):
     with command(ctx, "select") as cmd:
         def format_query(query):
             if not isinstance(query, dict): return query
-            conditions = ['%s:"%s"' % (column, cmd.escape_query(query[column])) for column in query]
+            conditions = [u'%s:"%s"' % (column, cmd.escape_query(query[column]).decode("utf-8")) for column in query]
             return " ".join(conditions)
         cmd.add_argument("table", table_name)
         for key,value in kwargs.items():
             if not value: continue
             if key == "query": value = format_query(value)
-            cmd.add_argument(key, str(value))
+            cmd.add_argument(key, value if isinstance(value, unicode) else str(value))
         rst = json.loads(cmd.execute())
     if len(rst) == 0:
         raise Exception("Query error")

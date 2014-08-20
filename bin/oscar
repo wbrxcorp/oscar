@@ -1,0 +1,48 @@
+#!/usr/bin/python2.7
+# -*- coding:utf-8 mode:python -*-
+
+import os,sys,argparse,logging
+
+__dirname = os.path.dirname(os.path.abspath(__file__))
+
+if os.path.isdir(__dirname + '/../src'):
+	sys.path.append(__dirname + '/../src')
+else:
+	sys.path.append(__dirname + '/../lib')
+
+import oscar
+
+import init
+import add
+import search
+import web
+import walk
+import update
+import extract
+import watch
+
+__author__ = "Walbrix Corporation"
+
+parser = argparse.ArgumentParser()
+parser.add_argument("-v", "--verbose", action="store_true")
+parser.add_argument("-l", "--log", default=None)
+
+subparsers = parser.add_subparsers()
+
+# setup timezone name for tzlocal
+if os.path.exists("/etc/localtime") and not os.getenv("TZ"):
+    localtime = os.path.realpath("/etc/localtime")
+    if localtime.startswith("/usr/share/zoneinfo/"):
+        os.environ["TZ"] = localtime[20:]
+
+for m in [init,add,search,web,walk,update,extract,watch]:
+    subparser = subparsers.add_parser(m.__name__)
+    m.parser_setup(subparser)
+
+args = parser.parse_args()
+
+if args.verbose: logging.basicConfig(level=logging.DEBUG)
+
+result = args.func(args)
+
+sys.exit(result if result else 0)

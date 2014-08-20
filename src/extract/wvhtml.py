@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 '''
 Created on 2014/08/15
 
@@ -9,7 +10,7 @@ USE="tools" emerge wv
 import re
 import extract,elinks
 
-def extract(filename):
+def do(filename):
     html = extract.process_output(["/usr/bin/wvWare", "--nographics", filename])
     title, text = elinks.extract_from_html(html)
     text = re.sub(ur'[ 　]+', ' ', text.decode("utf-8"))

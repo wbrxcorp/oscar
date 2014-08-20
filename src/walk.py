@@ -5,11 +5,12 @@ Created on 2014/08/14
 @author: shimarin
 '''
 
-import argparse,re,os,logging
-import oscar, groonga, add
+import argparse,re,os,logging,multiprocessing
+import oscar, groonga, add, update
 
 def parser_setup(parser):
     parser.add_argument("base_dir", nargs="+")
+    parser.set_defaults(func=run)
 
 def _walk(base_dir, context):
     uuid_set = set()
@@ -41,17 +42,20 @@ def _walk(base_dir, context):
                 logging.debug("%s marked as dirty" % uuid)
         offset += len(rows)
 
-
 def walk(base_dir, context = None):
     if context:
         _walk(base_dir, context)
     else:
         with oscar.context(base_dir) as context:
             _walk(base_dir, context)
+    update.update(base_dir, context, concurrency = multiprocessing.cpu_count() + 1) # TODO: 実行する時間に配慮
+
+def run(args):
+    for base_dir in args.base_dir:
+        walk(base_dir)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser_setup(parser)
     args = parser.parse_args()
-    for base_dir in args.base_dir:
-        walk(base_dir)
+    run(args)

@@ -1,9 +1,11 @@
 # encoding: utf-8
 
-import os,re,uuid,fcntl,errno,logging
-import groonga,xattr
+import os,re,uuid,fcntl,errno,logging,json,base64
+import rsa,xattr
+import groonga
 
 xattr_name = "user.oscar.uuid"
+_pk = "MEgCQQChvFeiMviXgB4RU9LIGJQ4DfxwPobNZHj6LqJYAAeOuwAmj4hpTLNolMNeyxy16p79MF2Om4KRuN8bnK8kVkuvAgMBAAE="
 
 global_logger = None
 
@@ -23,6 +25,12 @@ def get_logger(name):
 
 log = get_logger(__name__)
 
+def remove_preceding_slashes(filename):
+    return re.sub(r'^\/+', "", filename)
+
+def get_oscar_dir():
+    return os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+
 def get_database_name(base_dir):
     return os.path.join(base_dir, ".oscar/groonga")
 
@@ -31,7 +39,7 @@ def context(base_dir, create = False):
     return groonga.context(db_name, create)
 
 def get_real_path(base_dir, name):
-    return os.path.join(base_dir, re.sub(r'^\/+', "", name))
+    return os.path.join(base_dir, remove_preceding_slashes(name))
 
 def get_parent_dir(path_name):
     if path_name in ("", "/"): return None
@@ -72,11 +80,10 @@ def get_path_name(ctx, uuid):
         path_name = entry_name + path_name
         parent = entry_parent
         entry = groonga.get(ctx, "Entries", parent, "name,parent") if parent not in (None, "ROOT") else None
-    return path_name
+    return path_name.encode("utf-8")
 
 def discover_basedir(real_path):
-    if not os.path.isdir(real_path): return None
-    if os.path.isfile(get_database_name(real_path)): return real_path # found
+    if os.path.isdir(real_path) and os.path.isfile(get_database_name(real_path)): return real_path # found
     # else
     return discover_basedir(get_parent_dir(real_path)) if real_path not in ("", "/") else None
 
@@ -99,3 +106,20 @@ def find_entries_by_path(ctx, path):
         return rst
         
     return list(scan(re.sub(r'^\/+', "", os.path.normpath(path)).split("/")))
+
+def to_json(obj):
+    return json.dumps(obj, ensure_ascii=False)
+
+def get_license_string():
+    license_file = os.path.join(get_oscar_dir(), "etc/license.txt")
+    if not os.path.isfile(license_file): return None
+    try:
+        with open(license_file) as f:
+            license_string = f.readline().strip()
+            signature = base64.b64decode(f.readline())
+        pubkey = rsa.PublicKey.load_pkcs1(base64.b64decode(_pk), "DER")
+        rsa.verify(license_string, signature, pubkey)
+    except:
+        return None
+    return license_string.decode("utf-8")
+

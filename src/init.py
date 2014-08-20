@@ -34,6 +34,10 @@ schema = [
 
     # Fulltext-to-entries
     "column_create --table Fulltext --name entries --flags COLUMN_INDEX --type Entries --source fulltext",
+    
+    # Dirty index
+    "table_create --name BoolIndexes --flags TABLE_HASH_KEY --key_type Bool",
+    "column_create --table BoolIndexes --name dirty --flags COLUMN_INDEX --type Entries --source dirty",
 
     # Terms(fulltext_content:index of Fulltext.content)
     "table_create --name Terms --flags TABLE_PAT_KEY --key_type ShortText %s --normalizer NormalizerAuto" % tokenizer,
@@ -72,6 +76,9 @@ def init(base_dir_or_context):
     if groonga.is_context(base_dir_or_context):
         _init(base_dir_or_context)
     else:
+        basedir_already_exists = oscar.discover_basedir(oscar.get_parent_dir(base_dir_or_context))
+        if basedir_already_exists is not None:
+            raise Exception("Directory %s looks like having database already" % base_dir_or_context)
         with oscar.context(base_dir_or_context, True) as context:
             _init(context)
 

@@ -11,12 +11,13 @@ import oscar, groonga
 def parser_setup(parser):
     parser.add_argument("file", nargs="+")
 
-def get_ancestors(context, parent_uuid):
+def get_ancestors(base_dir, path_name):
     ancestors = set()
-    while parent_uuid and parent_uuid != "ROOT":
-        ancestors.add(parent_uuid)
-        parent = groonga.get(context, "Entries", parent_uuid, "parent")
-        parent_uuid = parent[0] if parent else None
+    path_name = oscar.get_parent_dir(path_name)
+    while path_name not in ("", "/", None):
+        real_path = oscar.get_real_path(base_dir, path_name)
+        ancestors.add(oscar.get_object_uuid(real_path))
+        path_name = oscar.get_parent_dir(path_name)
     return list(ancestors)
 
 def _add(base_dir, path_name, context):
@@ -45,19 +46,25 @@ def _add(base_dir, path_name, context):
             scan_same_name_entries_recursively(path_elements[1:], _key, os.path.join(dirname, name), loop_detector)
     scan_same_name_entries_recursively(re.sub(r'^\/+', "", os.path.normpath(path_name)).split("/"))
 
-    entry = groonga.get(context, "Entries", uuid, "name,parent,mtime")
+    # リアルファイルシステムから先祖全員のuuidを得る
+    ancestors = get_ancestors(base_dir, path_name)
+
+    entry = groonga.get(context, "Entries", uuid, "name,parent,mtime,ancestors")
     basename = oscar.get_basename(path_name)
     if entry:
-        entry_name = entry[0]
-        entry_parent = entry[1]
-        entry_mtime = entry[2]
-        # データベース上に既にエントリが存在する場合は、ファイル名とmtimeをチェックして必要ならファイル名を変更したり dirtyフラグを付けたりする
+        entry_name,entry_parent,entry_mtime,entry_ancestors = entry
+        # データベース上に既にエントリが存在する場合は、ファイル名とmtimeとparentをチェックして必要なら変更したり dirtyフラグを付けたりする
         obj_to_update = {"_key":uuid}
+        # 親が変わっている場合はすぐに変更
+        parent_dir = oscar.get_parent_dir(path_name)
+        parent_uuid = oscar.get_object_uuid(oscar.get_real_path(base_dir, parent_dir)) if parent_dir not in (None, "", "/") else "ROOT"
+        if entry_parent != parent_uuid:
+            obj_to_update["parent"] = parent_uuid
+            # TODO: フォルダの親が変わった時は全ての子孫の先祖リストをなんとかして上書きしなければならない
         # 名前の変更も dirtyにだけして後に任せる手はあるが、小さい処理なのでここでやってしまう
         if entry_name.encode("utf-8") != basename: obj_to_update["name"] = basename
-        # parentを辿って得たパス名と実際のパス名を比較し、異なる場合はparent及びancestorsを更新する
-        if os.path.dirname(oscar.get_path_name(context, uuid).encode("utf-8")) != os.path.dirname(path_name):
-            obj_to_update["ancestors"] = get_ancestors(context, entry_parent)
+        # データベース上の先祖リストとリアルの先祖リストに食い違いがある場合は上書きする
+        if set(entry_ancestors) != set(ancestors): obj_to_update["ancestors"] = ancestors
         try:
             stat = os.stat(real_path)
             if int(entry_mtime) != stat.st_mtime:
@@ -67,13 +74,19 @@ def _add(base_dir, path_name, context):
         if len(obj_to_update) > 1:
             groonga.load(context, "Entries", obj_to_update)
     else:
-        # データベース上にエントリが存在しない場合は、再帰的に最上位のディレクトリまで _process_entryを実行したのちに自分自身を dirty=trueにて登録する
+        # データベース上にエントリが存在しない場合は、再帰的に最上位のディレクトリまで _addを実行したのちに自分自身を dirty=trueにて登録する
         parent_dir = oscar.get_parent_dir(path_name)
-        parent_uuid = _add(base_dir, parent_dir, context) if parent_dir else "ROOT"
-        obj_to_insert = {"_key":uuid, "parent":parent_uuid, "name":basename, "ancestors":get_ancestors(context, parent_uuid), "dirty":True}
+        #logging.debug(parent_dir)
+        parent_uuid = _add(base_dir, parent_dir, context) if parent_dir not in ("", "/", None) else "ROOT"
+        obj_to_insert = {"_key":uuid, "parent":parent_uuid, "name":basename, "ancestors":ancestors}
+        stat = os.stat(real_path)
+        obj_to_insert["mtime"] = stat.st_mtime
         if os.path.isdir(real_path):
             obj_to_insert["size"] = -1
             obj_to_insert["dirty"] = False  # ディレクトリの場合は中身まで見る必要がないので cleanで登録
+        else:
+            obj_to_insert["size"] = stat.st_size
+            obj_to_insert["dirty"] = True
         if groonga.load(context, "Entries", obj_to_insert) == 0:
             raise Exception("Loading into Entries table failed")
     return uuid

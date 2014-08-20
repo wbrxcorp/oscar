@@ -7,7 +7,7 @@ Created on 2014/08/15
 import os
 import extract
 
-def extract(filename):
+def do(filename):
     if os.path.isfile(filename) and os.stat(filename).st_size > 1024 * 1024 * 10:
         return ("", "***TOO LARGE TEXT FILE***") 
     # else

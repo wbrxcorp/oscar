@@ -8,6 +8,6 @@ emerge poppler
 
 import extract
 
-def extract(filename):
+def do(filename):
     text = extract.process_output(["/usr/bin/pdftotext",filename, "-"])
     return ("", extract.utf8_cleanup(text))

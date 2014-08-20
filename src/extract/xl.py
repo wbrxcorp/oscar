@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 '''
 Created on 2014/08/15
 
@@ -10,7 +11,7 @@ import re,StringIO
 import xlrd
 import extract
 
-def xl(filename):
+def do(filename):
     def cell2str(cell):
         if (cell.ctype == xlrd.XL_CELL_TEXT): return cell.value
         if (cell.ctype == xlrd.XL_CELL_NUMBER): return unicode(cell.value)

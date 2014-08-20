@@ -3,6 +3,7 @@
 *#
 *.bak
 etc
+shares
 .settings
 oscar.min.js
 oscar.tar

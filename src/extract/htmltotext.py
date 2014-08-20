@@ -7,7 +7,7 @@ Created on 2014/08/15
 import nkf
 import elinks
 
-def extract(filename):
+def do(filename):
     html = open(filename).read()
     html = nkf.nkf("-w", html)
     return elinks.extract_from_html(html)

@@ -1,0 +1,55 @@
+{%extends "page.html"%}
+{%block title%}トップ{%endblock%}
+
+{%block contents%}
+{% raw %}
+<div style="margin-top:1em;" ng-controller="IndexController">
+  <div ng-show="!info.error">
+    <h3>利用可能な共有フォルダ</h3>
+    <ul class="media-list" ng-show="info.shares.length > 0">
+      <li class="media" ng-repeat="share in info.shares">
+        <a href="{{share.name}}" class="pull-left"><img class="pull-left" src="/static/img/filetype/folder.png" width="48" height="48"></a>
+        <div class="media-body">
+          <h4 class="media-heading"><a href="{{share.name}}"><span ng-show="!share.guest_ok" class="glyphicon glyphicon-lock"></span> {{share.name}}</a></h4>
+          <p>{{share.comment}} <span ng-show="share.info">(検索可能ファイル数{{share.info.count}}件<span ng-show="share.info.queued">、インデックス待ち{{share.info.queued}}件</span>) </span><span ng-show="info.eden"><a class="btn btn-success btn-xs" href="{{eden_link(share.name)}}">エクスプローラで開く</a> <a ng-click="iehelp()" href=""><span class="glyphicon glyphicon-question-sign"></span></a></span></p>
+        </div>
+      </li>
+    </ul>
+    
+    <div class="alert alert-warning" ng-show="info.shares.length == 0">
+      共有フォルダがまだ作成されていません。<a href="_admin/" class="alert-link">管理画面で共有フォルダを作成</a>してください。
+    </div>
+
+    <div class="panel panel-default">
+      <div class="panel-heading">
+        <h4 class="panel-title">システム情報</h4>
+      </div>
+      <div class="panel-body">
+        <h4>CPU負荷</h4>
+        <table class="table">
+        <thead>
+            <tr><th>直近</th><th>5分間平均</th><th>10分間平均</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td ng-repeat="item in info.loadavg">
+              <div ng-class="alert_class(item)">{{Math.floor(item * 100)}}%</div>
+            </td>
+          </tr>
+        </tbody>
+        </table>
+        <h4>ディスク容量</h4>
+        <p class="text-center">総容量: {{info.capacity.total[0]}}</p>
+        <progress style="height:3em;">
+          <bar value="info.capacity.used[1]" type="warning">使用中 {{info.capacity.used[0]}}<br/>({{info.capacity.used[1]}}%)</bar>
+          <bar value="info.capacity.free[1]" type="success">空き {{info.capacity.free[0]}}<br/>({{info.capacity.free[1]}}%)</bar>
+        </progress>
+      </div>
+    </div>
+  </div>
+  <div style="margin:1em;" class="alert alert-danger" ng-show="info.error">
+    システムエラー: ブラウザの再読み込みボタンを押して再試行してください。
+  </div>
+</div>
+{%endraw%}
+{%endblock%}

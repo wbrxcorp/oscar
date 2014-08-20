@@ -5,17 +5,19 @@ Created on 2014/08/14
 @author: shimarin
 '''
 
-import argparse,os,logging
+import argparse,logging
 import oscar, groonga
 
 def parser_setup(parser):
     parser.add_argument("file", nargs="+")
 
 def delete_by_uuid(context, uuid):
-    pass
+    if uuid == "ROOT": return
+    groonga.delete(context, "Entries", uuid)
 
 def _delete(base_dir, name, context):
-    pass
+    for uuid in oscar.find_entries_by_path(context, name):
+        delete_by_uuid(context, uuid)
 
 def delete(base_dir, name, context = None):
     if context:

@@ -1,0 +1,206 @@
+{%extends "page.html"%}
+{%block title%}管理{%endblock%}
+
+{%block contents%}
+{% raw %}
+<div style="margin-top:1em;">
+  <h2>管理画面</h2>
+  <tabset>
+    <tab heading="共有フォルダ" ng-controller="ShareAdminController">
+      <h3>共有フォルダ</h3>
+      <div class="row" style="margin-bottom:3em;">
+        <div class="col-sm-3">
+          <tabset vertical="true" type="pills">
+            <tab select="new_share_selected()">
+              <tab-heading><span class="glyphicon glyphicon-plus"></span> 新しく作成</tab-heading>
+            </tab>
+            <tab ng-repeat="share in shares" select="share_selected(share.name)">
+              <tab-heading><span class="glyphicon glyphicon-folder-close"></span> {{share.name}}</tab-heading>
+            </tab>
+          </tabset>
+        </div>
+        <div class="col-sm-9">
+          <div class="panel panel-default">
+            <div class="panel-heading">
+              <h4 class="panel-title">共有フォルダの<span ng-show="share.new">新規作成</span><span ng-show="!share.new">設定</span></h4>
+            </div>
+            <div class="panel-body">
+              <form name="shareForm" class="form-horizontal">
+                <div class="form-group">
+                  <label class="col-sm-2 control-label">共有名</label>
+                  <div class="col-sm-10">
+                    <input ng-show="share.new" type="text" class="form-control" name="shareName" ng-model="share.name" ng-maxlength="32" ng-required="true" folder-name>
+                    <p ng-show="!share.new" class="form-control-static">{{share.name}}</p>
+                    <span class="text-danger" ng-show="shareForm.shareName.$error.required">入力必須です</span>
+                    <span class="text-danger" ng-show="shareForm.shareName.$error.folderName">使用できない文字が含まれています</span>
+                    <span class="text-danger" ng-show="shareForm.shareName.$error.maxlength">最大32文字まで</span>
+                  </div>
+                </div>
+                <div class="form-group">
+                  <label class="col-sm-2 control-label">共有の説明文</label>
+                  <div class="col-sm-10">
+                      <input type="text" class="form-control" name="comment" ng-model="share.comment" ng-maxlength="64">
+                    <span class="text-danger" ng-show="shareForm.comment.$error.maxlength">最大64文字まで</span>
+                  </div>
+                </div>
+                <div class="form-group">
+                  <label class="col-sm-2 control-label">自動同期元</label>
+                  <div class="col-sm-10">
+                    <div class="input-group">
+                      <input type="text" class="form-control" name="syncorigin" ng-model="share.options.syncorigin.path" 
+                        ng-pattern="/^\/\/[a-zA-Z0-9_\-\.]{1,32}\/.+$/">
+                      <span class="input-group-btn">
+                        <button class="btn btn-default" ng-click="testSyncOrigin()" type="button" ng-disabled="!shareForm.syncorigin.$valid || !share.options.syncorigin.path">接続テスト</button>
+                      </span>
+                    </div><!-- /input-group -->
+                    <p class="help-block"><strong>//</strong>ホスト名又はIPアドレス<strong>/</strong>共有フォルダのパス</p>
+                    <span class="text-danger" ng-show="shareForm.syncorigin.$error.pattern">書式が不正です</span>
+                  </div>
+                </div>
+               <div class="form-group">
+                 <label class="col-sm-2 control-label">自動同期認証</label>
+                 <div class="col-sm-5">
+                   <input type="text" class="form-control" name="username" ng-model="share.options.syncorigin.username" ng-required="share.options.syncorigin.password">
+                   <p class="help-block">同期元へ接続するためのユーザー名</p>
+                    <span class="text-danger" ng-show="shareForm.username.$error.required">入力必須です</span>
+                 </div>
+                 <div class="col-sm-5">
+                   <input type="password" class="form-control" name="password" ng-model="share.options.syncorigin.password">
+                   <p class="help-block">パスワード</p>
+                 </div>
+               </div>
+                <div class="form-group">
+                  <label class="col-sm-2 control-label">自動同期スケジュール</label>
+                  <div class="col-sm-10">
+                    <div class="btn-group">
+                      <label class="btn btn-default" ng-model="share.options.syncday.sun" btn-checkbox><span class="text-danger">日</span></label>
+                      <label class="btn btn-default" ng-model="share.options.syncday.mon" btn-checkbox>月</label>
+                      <label class="btn btn-default" ng-model="share.options.syncday.tue" btn-checkbox>火</label>
+                      <label class="btn btn-default" ng-model="share.options.syncday.wed" btn-checkbox>水</label>
+                      <label class="btn btn-default" ng-model="share.options.syncday.thu" btn-checkbox>木</label>
+                      <label class="btn btn-default" ng-model="share.options.syncday.fri" btn-checkbox>金</label>
+                      <label class="btn btn-default" ng-model="share.options.syncday.sat" btn-checkbox><span class="text-info">土</span></label>
+                    </div>
+                    <div ng-model="share.options.synctime"><timepicker minute-step="5" show-meridian="false"></timepicker></div>
+                  </div>
+                </div>
+                <div class="form-group">
+                  <div class="col-sm-offset-2 col-sm-5">
+                    <button ng-show="share.new" class="btn btn-primary" ng-disabled="!shareForm.$valid" ng-click="create_share()">新規作成</button>
+                    <button ng-show="!share.new" class="btn btn-primary" ng-disabled="!shareForm.$valid || shareForm.$pristine" ng-click="update_share()">設定を更新</button>
+                    <button ng-show="!share.new" class="btn btn-default" ng-disabled="shareForm.$pristine" ng-click="share_selected(share.name)">リセット</button>
+                  </div>
+                  <div class="col-sm-5"><span class="text-danger" ng-show="share.errorMessage">{{share.errorMessage}}</span></div>
+                </div>
+              </form>
+            </div>
+          </div>
+          <div class="panel panel-default" ng-show="!share.new">
+            <div class="panel-heading">
+              <h4 class="panel-title">共有フォルダに対する操作</h4>
+            </div>
+            <div class="panel-body">
+              <button class="btn btn-warning" ng-click="truncate_share_index()">検索インデックスのリセット</button>
+              <button class="btn btn-danger" ng-click="delete_share()">共有フォルダの削除</button>
+              <span class="text-danger" ng-show="share.opErrorMessage">{{share.opErrorMessage}}</span>
+            </div>
+          </div>
+          <div class="panel panel-default" ng-show="share.log">
+            <div class="panel-heading">
+              <h4 class="panel-title">ログ</h4>
+            </div>
+            <div class="panel-body">
+              <table class="table table-condensed">
+                <thead><th>日時</th><th>種別</th><th>内容</th></thead>
+                <tbody>
+                  <tr ng-repeat="row in share.log.rows">
+                    <td style="white-space: nowrap;">{{row.time * 1000|date:'yyyy-MM-dd'}}<br>{{row.time * 1000|date:' HH:mm:ss'}}</td>
+                    <td style="white-space: nowrap;">{{row.category}}</td><td>{{row.content}}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </tab>
+
+    <tab heading="ユーザー" ng-controller="UserAdminController">
+      <h3>ユーザー</h3>
+      <div class="row">
+        <div class="col-sm-3">
+          <tabset vertical="true" type="pills">
+            <tab heading="新しく作成" select="new_user_selected()">
+              <tab-heading><span class="glyphicon glyphicon-plus"></span> 新しく作成</tab-heading>
+            </tab>
+            <tab ng-repeat="user in users" select="user_selected(user.name)">
+              <tab-heading><span class="glyphicon glyphicon-user"></span> {{user.name}}</tab-heading>
+            </tab>
+          </tabset>
+        </div>
+        <div class="col-sm-9">
+          <div class="panel panel-default">
+            <div class="panel-heading">
+              <h4 class="panel-title">ユーザーの<span ng-show="user.new">新規作成</span><span ng-show="!user.new">設定</span></h4>
+            </div>
+            <div class="panel-body">
+              <form name="userForm" class="form-horizontal">
+                <div class="form-group">
+                 <label class="col-sm-2 control-label">ユーザー名</label>
+                 <div class="col-sm-10">
+                   <input ng-show="user.new" type="text" class="form-control" name="name" ng-model="user.name" 
+                     ng-required="true" ng-minlength="2" ng-maxlength="20" ng-pattern="/^[a-zA-Z0-9][a-zA-Z0-9_-]*[a-zA-Z0-9]$/">
+                   <p ng-show="!user.new" class="form-control-static">{{user.name}}</p>
+                   <span class="text-danger" ng-show="userForm.name.$error.required">入力必須です</span>
+                   <span class="text-danger" ng-show="userForm.name.$error.maxlength">最大20文字まで</span>
+                   <span class="text-danger" ng-show="userForm.name.$error.pattern">2文字に満たないか、使用できない文字が含まれています</span>
+                 </div>
+               </div>
+               <div class="form-group">
+                 <label class="col-sm-2 control-label">パスワード</label>
+                 <div class="col-sm-5">
+                   <input type="password" class="form-control" name="password" ng-model="user.password" ng-required="user.new">
+                   <p class="help-block" ng-show="!user.new">変更する場合のみ入力</p>
+                   <span class="text-danger" ng-show="userForm.password.$error.required">入力必須です</span>
+                 </div>
+                 <div class="col-sm-5">
+                   <input type="password" class="form-control" name="password_cfm" ng-model="user.password_cfm" ng-required="user.new || (user.password && user.password != '')" match="user.password">
+                   <p class="help-block">確認のため再度入力</p>
+                   <span class="text-danger" ng-show="userForm.password_cfm.$error.required">入力必須です</span>
+                   <span class="text-danger" ng-show="userForm.password_cfm.$error.mismatch">一致していません</span>
+                 </div>
+               </div>
+               <div class="form-group">
+                 <label class="col-sm-2 control-label">種別</label>
+                 <div class="col-sm-10">
+                   <label class="radio-inline"><input type="radio" ng-model="user.admin" ng-value="false">一般ユーザー</label>
+                   <label class="radio-inline"><input type="radio" ng-model="user.admin" ng-value="true">管理者</label>
+                 </div>
+               </div>
+               <div class="form-group">
+                 <div class="col-sm-offset-2 col-sm-5">
+                   <button ng-show="user.new" class="btn btn-primary" ng-disabled="!userForm.$valid" ng-click="create_user()">新規作成</button>
+                   <button ng-show="!user.new" class="btn btn-primary" ng-disabled="!userForm.$valid || userForm.$pristine" ng-click="update_user()">設定を更新</button>
+                   <button ng-show="!user.new" class="btn btn-default" ng-disabled="userForm.$pristine" ng-click="user_selected(user.name)">リセット</button>
+                 </div>
+                 <div class="col-sm-5"><span class="text-danger" ng-show="user.errorMessage">{{user.errorMessage}}</span></div>
+               </div>
+             </form>
+           </div>
+          </div>
+          <div class="panel panel-default" ng-show="!user.new">
+            <div class="panel-heading">
+              <h4 class="panel-title">ユーザーに対する操作</h4>
+            </div>
+            <div class="panel-body">
+              <button class="btn btn-danger" ng-click="delete_user(user.name)">ユーザーを削除</button>
+              <span class="text-danger" ng-show="user.opErrorMessage">{{user.opErrorMessage}}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </tab>
+  </tabset>
+</div>
+{%endraw%}
+{%endblock%}
