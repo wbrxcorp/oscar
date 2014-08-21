@@ -23,12 +23,12 @@ def delete(base_dir, name, context = None):
     if context:
         return _delete(base_dir, name, context)
     else:
-        with oscar.context(base_dir) as context:
+        with oscar.context(base_dir, oscar.min_free_blocks) as context:
             return _delete(base_dir, name, context)
 
 def delete_by_real_path(file):
     base_dir = oscar.discover_basedir(file)
-    with oscar.context(base_dir) as context:
+    with oscar.context(base_dir, oscar.min_free_blocks) as context:
         return delete(base_dir, file[:len(base_dir)], context)
 
 if __name__ == "__main__":

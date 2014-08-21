@@ -5,7 +5,7 @@ Created on 2014/08/14
 @author: shimarin
 '''
 
-import argparse,re,os,logging
+import argparse,re,os,logging,stat
 import oscar, groonga
 
 def parser_setup(parser):
@@ -66,9 +66,10 @@ def _add(base_dir, path_name, context):
         # データベース上の先祖リストとリアルの先祖リストに食い違いがある場合は上書きする
         if set(entry_ancestors) != set(ancestors): obj_to_update["ancestors"] = ancestors
         try:
-            stat = os.stat(real_path)
-            if int(entry_mtime) != stat.st_mtime:
+            s = os.stat(real_path)
+            if entry_mtime != s.st_mtime and not stat.S_ISDIR(s.st_mode): # ディレクトリの mtime違いはいちいち反映させても無駄なので見逃す
                 obj_to_update["dirty"] = True
+                logging.debug("dirty due to mtime change %d:%d" % (entry_mtime, s.st_mtime))
         except OSError: # タッチの差でファイルが消えてたりしたとき
             obj_to_update["dirty"] = True
         if len(obj_to_update) > 1:
@@ -79,13 +80,13 @@ def _add(base_dir, path_name, context):
         #logging.debug(parent_dir)
         parent_uuid = _add(base_dir, parent_dir, context) if parent_dir not in ("", "/", None) else "ROOT"
         obj_to_insert = {"_key":uuid, "parent":parent_uuid, "name":basename, "ancestors":ancestors}
-        stat = os.stat(real_path)
-        obj_to_insert["mtime"] = stat.st_mtime
+        s = os.stat(real_path)
+        obj_to_insert["mtime"] = s.st_mtime
         if os.path.isdir(real_path):
             obj_to_insert["size"] = -1
             obj_to_insert["dirty"] = False  # ディレクトリの場合は中身まで見る必要がないので cleanで登録
         else:
-            obj_to_insert["size"] = stat.st_size
+            obj_to_insert["size"] = s.st_size
             obj_to_insert["dirty"] = True
         if groonga.load(context, "Entries", obj_to_insert) == 0:
             raise Exception("Loading into Entries table failed")
@@ -95,12 +96,12 @@ def add(base_dir, name, context = None):
     if context:
         return _add(base_dir, name, context)
     else:
-        with oscar.context(base_dir) as context:
+        with oscar.context(base_dir, oscar.min_free_blocks) as context:
             return _add(base_dir, name, context)
 
 def add_by_real_path(file):
     base_dir = oscar.discover_basedir(file)
-    with oscar.context(base_dir) as context:
+    with oscar.context(base_dir, oscar.min_free_blocks) as context:
         add(base_dir, file[:len(base_dir)], context)
 
 if __name__ == "__main__":

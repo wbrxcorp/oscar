@@ -2,6 +2,7 @@
 *~
 *#
 *.bak
+lib.tar
 etc
 shares
 .settings

@@ -24,7 +24,7 @@ schema = [
     "column_create --table Entries --name ancestors --flags COLUMN_VECTOR --type Entries", 
     "column_create --table Entries --name name --flags COLUMN_SCALAR --type ShortText",
     "column_create --table Entries --name fulltext --type Fulltext",
-    "column_create --table Entries --name mtime --type Time",
+    "column_create --table Entries --name mtime --type Int64",
     "column_create --table Entries --name size --type Int64",  # -1 = directory
     "column_create --table Entries --name dirty --flags COLUMN_SCALAR --type Bool",
     # entry ref index
@@ -65,6 +65,7 @@ log = oscar.get_logger(__name__)
 
 def parser_setup(parser):
     parser.add_argument("base_dir", nargs="+")
+    parser.set_defaults(func=run)
 
 def _init(context):
     for command in schema:
@@ -79,7 +80,7 @@ def init(base_dir_or_context):
         basedir_already_exists = oscar.discover_basedir(oscar.get_parent_dir(base_dir_or_context))
         if basedir_already_exists is not None:
             raise Exception("Directory %s looks like having database already" % base_dir_or_context)
-        with oscar.context(base_dir_or_context, True) as context:
+        with oscar.context(base_dir_or_context, oscar.min_free_blocks, create=True) as context:
             _init(context)
 
 def run(args):

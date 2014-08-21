@@ -1,6 +1,6 @@
 # encoding: utf-8
 
-import os,re,uuid,fcntl,errno,logging,json,base64
+import os,re,uuid,fcntl,errno,logging,json,base64,signal,threading
 import rsa,xattr
 import groonga
 
@@ -8,6 +8,10 @@ xattr_name = "user.oscar.uuid"
 _pk = "MEgCQQChvFeiMviXgB4RU9LIGJQ4DfxwPobNZHj6LqJYAAeOuwAmj4hpTLNolMNeyxy16p79MF2Om4KRuN8bnK8kVkuvAgMBAAE="
 
 global_logger = None
+min_free_blocks = 2500
+
+class DiskFullException(Exception):
+    pass
 
 def set_global_logger(logger):
     global global_logger
@@ -34,7 +38,11 @@ def get_oscar_dir():
 def get_database_name(base_dir):
     return os.path.join(base_dir, ".oscar/groonga")
 
-def context(base_dir, create = False):
+def context(base_dir, min_free_blocks = None, create = False):
+    if min_free_blocks is not None:
+        f_bfree = os.statvfs(base_dir).f_bfree
+        if f_bfree < min_free_blocks:
+            raise DiskFullException("Insufficient free blocks in filesystem (available:%d, requested:%d)" % (f_bfree, min_free_blocks))
     db_name = get_database_name(base_dir)
     return groonga.context(db_name, create)
 
@@ -110,16 +118,56 @@ def find_entries_by_path(ctx, path):
 def to_json(obj):
     return json.dumps(obj, ensure_ascii=False)
 
+def verify_license(license_string, license_signature):
+    signature = base64.b64decode(license_signature)
+    pubkey = rsa.PublicKey.load_pkcs1(base64.b64decode(_pk), "DER")
+    try:
+        rsa.verify(license_string, signature, pubkey)
+    except:
+        return False
+    return True
+
 def get_license_string():
     license_file = os.path.join(get_oscar_dir(), "etc/license.txt")
-    if not os.path.isfile(license_file): return None
     try:
         with open(license_file) as f:
             license_string = f.readline().strip()
             signature = base64.b64decode(f.readline())
         pubkey = rsa.PublicKey.load_pkcs1(base64.b64decode(_pk), "DER")
         rsa.verify(license_string, signature, pubkey)
+        return license_string
     except:
+        pass
+
+    license_file = os.path.join(get_oscar_dir(), "bin/oscar")
+    if not os.path.isfile(license_file): return None
+    try:
+        license_string = xattr.get(license_file, "user.oscar.license")
+        license_signature = xattr.get(license_file, "user.oscar.license.signature")
+    except IOError, e:
+        if e.errno != errno.ENODATA: raise e
+        #else
         return None
-    return license_string.decode("utf-8")
+
+    return license_string.decode("utf-8") if verify_license(license_string, license_signature) else None
+
+def save_license(license_text, license_signature):
+    license_file = os.path.join(get_oscar_dir(), "etc/license.txt")
+    with open(license_file, "w") as f:
+        f.write(license_text + '\n')
+        f.write(license_signature + '\n')
+
+    license_file = os.path.join(get_oscar_dir(), "bin/oscar")
+    try:
+        xattr.set(license_file, "user.oscar.license", license_text)
+        xattr.set(license_file, "user.oscar.license.signature", license_signature)
+    except IOError, e:
+        if e.errno != errno.ENODATA: raise e
+
+def treat_sigterm_as_keyboard_interrupt():
+    if threading.current_thread().__class__.__name__ != '_MainThread': # http://stackoverflow.com/questions/23206787/check-if-current-thread-is-main-thread-in-python
+        raise Exception("Signal handler must be registered in main thread.")
+    def sigterm_handler(_signo, _stack_frame):
+        raise KeyboardInterrupt()
+    signal.signal(signal.SIGTERM, sigterm_handler)
 

@@ -28,7 +28,7 @@ def is_eden(request):
 
 def check_access_credential(share):
     if share["guest ok"]: return is_private_network()
-    return flask.g.username and samba.access_permitted(share.name, flask.g.username)
+    return flask.g.username and samba.access_permitted(share, flask.g.username)
 
 def require_access_credential(share):
     if not check_access_credential(share): raise AuthRequired()
@@ -39,6 +39,7 @@ def before_request():
     flask.g.username = auth.username if auth and samba.check_user_password(auth.username, auth.password) else None
     # プライベートネットワークからのアクセスでない場合は何のリクエストにしても認証を要求する
     if not flask.g.username and not is_private_network():
+        # TODO: ユーザーが未登録の場合は外から誰もアクセスできないことになるが良いか？
         raise AuthRequired()
 
 @app.errorhandler(AuthRequired)

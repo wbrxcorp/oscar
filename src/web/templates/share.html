@@ -32,7 +32,7 @@
 
   <div style="margin-bottom:0.5em;">
     <div ng-show="info.count > 0">
-      <h3>検索キーワード <small>配下{{info.count}}件のファイルから検索します<span ng-show="info.queued"> (インデックス待ち{{info.queued}}件)</span></small></h3>
+      <h3>検索キーワード <small>配下{{info.count}}件のファイルから検索します<span ng-show="info.queued"> (インデックス更新待ち{{info.queued}}件)</span></small></h3>
       <p><input type="text" ng-model="q" placeholder="keyword" size="50" focus="true"/> <span ng-show="search.$resolved === false"><span class="glyphicon glyphicon-refresh"></span> 検索中...</span></p>
       <p>表示件数 
         <label class="radio-inline"><input type="radio" ng-model="limit" ng-value="20">20件ずつ</label>
@@ -40,7 +40,7 @@
         <label class="radio-inline"><input type="radio" ng-model="limit" ng-value="100">100件ずつ</label>
       </p>
     </div>
-    <div ng-show="info.count == 0">
+    <div ng-show="info.count + info.queued == 0">
       <div class="alert alert-warning">このフォルダの配下には検索可能なファイルがありません。</div>
     </div>
   </div>
@@ -64,7 +64,7 @@
           </a>
           <small><span ng-show="row.size >= 0">{{row.size|number}}バイト</span><span ng-show="row.size < 0">フォルダ</span> {{row.mtime * 1000|date:'yyyy-MM-dd HH:mm'}}更新</small>
         </h4>
-        場所: <a ng-click="move_to(row.dir)" href=""><span class="glyphicon glyphicon-folder-close"></span> {{(row.dir == "")? "ルート" : row.dir}}</a><br/>
+        場所: <a ng-click="move_to(row.dir)" href=""><span class="glyphicon glyphicon-folder-close"></span> {{row.dir}}</a><br/>
         <span ng-repeat="snippet in row.snippets.content">..<span ng-bind-html="snippet"></span>..</span>
       </div>
       {%endraw%}{%if not license%}{%raw%}

@@ -20,6 +20,9 @@ import walk
 import update
 import extract
 import watch
+import license
+import schedule
+import gc_ft
 
 __author__ = "Walbrix Corporation"
 
@@ -35,7 +38,7 @@ if os.path.exists("/etc/localtime") and not os.getenv("TZ"):
     if localtime.startswith("/usr/share/zoneinfo/"):
         os.environ["TZ"] = localtime[20:]
 
-for m in [init,add,search,web,walk,update,extract,watch]:
+for m in [init,add,search,web,walk,update,extract,watch,license,schedule,gc_ft]:
     subparser = subparsers.add_parser(m.__name__)
     m.parser_setup(subparser)
 

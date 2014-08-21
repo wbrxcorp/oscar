@@ -18,13 +18,13 @@ def _walk(base_dir, context):
         r = re.sub(r'^\/+', "", root[len(base_dir):])
         if r.startswith('.'): continue
         for file in files:
-            if file.startswith('.'): continue
+            if file.startswith('.') or os.path.islink(file): continue
             filename = os.path.join(r, file)
             uuid = add.add(base_dir, filename, context)
             uuid_set.add(uuid)
             logging.debug("file %s:%s" % (uuid, filename))
         for d in dirs:
-            if d.startswith('.'): continue
+            if d.startswith('.') or os.path.islink(file): continue
             dirname = os.path.join(r, d)
             uuid = add.add(base_dir, dirname, context)
             uuid_set.add(uuid)
@@ -47,9 +47,8 @@ def walk(base_dir, context = None):
     if context:
         _walk(base_dir, context)
     else:
-        with oscar.context(base_dir) as context:
-            _walk(base_dir, context)
-    update.update(base_dir, context, concurrency = multiprocessing.cpu_count() + 1) # TODO: 実行する時間に配慮
+        with oscar.context(base_dir, oscar.min_free_blocks) as ctx:
+            _walk(base_dir, ctx)
 
 def run(args):
     for base_dir in args.base_dir:

@@ -5,12 +5,13 @@ Created on 2014/08/15
 @author: shimarin
 '''
 
-import argparse,os,logging,multiprocessing,time,threading
+import argparse,os,logging,multiprocessing,threading
 import pyinotify
-import oscar,add,update
+import oscar,add,update,groonga
 
 basedirs = None
-condition = None
+condition = threading.Condition()
+stop_event = threading.Event()
 
 def parser_setup(parser):
     parser.add_argument("dir", nargs="+")
@@ -25,8 +26,13 @@ def process_event(base_dir, context, event_mask, event_pathname):
         add.add(base_dir, event_pathname, context)
     elif (event_mask & pyinotify.IN_DELETE) or (event_mask & pyinotify.IN_MOVED_FROM): # @UndefinedVariable
         for uuid in oscar.find_entries_by_path(context, event_pathname):
-            logging.debug(u"Marking %s(uuid=%s) in %s as dirty" % (event_pathname.decode("utf-8"), uuid, base_dir.decode("utf-8")))
-            oscar.mark_as_dirty(context, uuid)
+            entry = groonga.get(context, "Entries", uuid, "size")
+            if entry and entry[0] >= 0: # ディレクトリではないエントリなので即時削除してしまおう
+                logging.debug(u"Immediate delete %s(%s)" % (event_pathname.decode("utf-8"), uuid))
+                groonga.delete(context, "Entries", uuid)
+            else:
+                logging.debug(u"Marking %s(uuid=%s) in %s as dirty" % (event_pathname.decode("utf-8"), uuid, base_dir.decode("utf-8")))
+                oscar.mark_as_dirty(context, uuid)
 
 def watch(dirs):
     def callback(event):
@@ -34,16 +40,14 @@ def watch(dirs):
         if event.mask & pyinotify.IN_IGNORED: return # @UndefinedVariable
         # ignoreしているディレクトリそのものについてはイベントを拾ってしまうようなので捨てる
         if event.pathname.endswith("/.oscar"): return
+        #logging.debug(event)
         # 対象がディレクトリの場合、一階層上からbase_dirを探す（でないとそれ自身の中にある .oscarを拾ってしまう）
         base_dir = oscar.discover_basedir(oscar.get_parent_dir(event.pathname) if event.mask & pyinotify.IN_ISDIR else event.pathname) # @UndefinedVariable
         if not base_dir: return
-        logging.debug(basedirs)
-        with oscar.context(base_dir) as context:
+        #logging.debug(basedirs)
+        with oscar.context(base_dir, oscar.min_free_blocks) as context:
             process_event(base_dir, context, event.mask, event.pathname[len(base_dir) + 1:])
-        if basedirs is not None and condition is not None:
-            with condition:
-                basedirs.add(base_dir) # for update afterwards
-                condition.notifyAll()
+        if basedirs is not None: basedirs.add(base_dir) # for update afterwards
     
     def exclude(path):
         #logging.debug("exclude? : %s" % path)
@@ -56,37 +60,52 @@ def watch(dirs):
 
     while True:
         if notifier.check_events(5000):
-            notifier.read_events()
-            notifier.process_events()
+            with condition:
+                notifier.read_events()
+                notifier.process_events()
+                if basedirs and len(basedirs) > 0:
+                    condition.notifyAll()
         # do something if necessary
 
 def update_loop():
-    while True:
-        try:
-            with condition:
-                if len(basedirs) == 0: condition.wait()
-                base_dir = basedirs.pop()
-            if not os.path.isdir(base_dir):
-                logging.error("Directory %s does not exist. deleted, perhaps?" % base_dir)
-                continue
+    def do_update(base_dirs):
+        for base_dir in base_dirs:
             logging.debug("updating %s" % base_dir)
             update.update(base_dir, concurrency = multiprocessing.cpu_count() + 1)
-        except:
-            # なんか例外の時でもスレッドが終了してしまわないようにログだけ残して継続する
-            logging.exception("update_loop")
-            time.sleep(1)
+
+    while not stop_event.is_set():
+        with condition:
+            if len(basedirs) == 0:
+                condition.wait(10)
+                if len(basedirs) == 0 or stop_event.is_set(): continue
+            update_proc = multiprocessing.Process(target=do_update, args=(list(basedirs),))
+            basedirs.clear()
+        update_proc.start()
+        while update_proc.is_alive() and not stop_event.is_set():
+            update_proc.join(1)
+        if update_proc.is_alive():
+            update_proc.terminate()
 
 def run(args):
     global basedirs,condition
     basedirs = set()
-    condition = threading.Condition()
     
+    logging.info("Start updater thread")
     updater = threading.Thread(target=update_loop)
-    updater.setDaemon(True)
+    #updater.setDaemon(True)
     updater.start()
 
     logging.info("Start watching directories %s" % args.dir)
-    watch(args.dir)
+
+    oscar.treat_sigterm_as_keyboard_interrupt()
+    try:
+        watch(args.dir)
+    finally:
+        stop_event.set()
+        with condition:
+            condition.notifyAll()
+        logging.info("Waiting for update thread shutdown...")
+        updater.join()
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

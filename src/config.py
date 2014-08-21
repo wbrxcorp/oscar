@@ -19,9 +19,9 @@ def parser_setup(parser):
 
 def get(base_dir, config_name = None):
     with oscar.context(base_dir) as context:
-        with groonga.command(context, "select") as command:
+        with context.command("select") as command:
             command.add_argument("table", "Config")
-            if config_name: command.add_argument("filter", "_key == \"%s\"" % config_name)
+            if config_name: command.add_argument("filter", "_key == \"%s\"" % command.escape(config_name))
             rows = json.loads(command.execute())[0][2:]
     if config_name:
         return json.loads(rows[0][2]) if len(rows) > 0 else None
@@ -32,11 +32,11 @@ def get(base_dir, config_name = None):
     return result
 
 def put(base_dir, config_name, value):
-    with oscar.context(base_dir) as context:
+    with oscar.context(base_dir, oscar.min_free_blocks) as context:
         groonga.load(context, "Config", {"_key":config_name,"value":oscar.to_json(value)})
 
 def put_all(base_dir, configs):
-    with oscar.context(base_dir) as context:
+    with oscar.context(base_dir, oscar.min_free_blocks) as context:
         groonga.load(context, "Config", map(lambda (x,y):{"_key":x,"value":oscar.to_json(y)}, configs.items()))
 
 def show_one(base_dir, config_name):
@@ -44,7 +44,7 @@ def show_one(base_dir, config_name):
         print groonga.get(context, "Config", config_name)
 
 def set_one(base_dir, config_name, value):
-    with oscar.context(base_dir) as context:
+    with oscar.context(base_dir, oscar.min_free_blocks) as context:
         groonga.load(context, "Config", {"_key":"config_name","value":"value"})
 
 def run(args):
