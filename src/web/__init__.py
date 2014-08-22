@@ -11,6 +11,7 @@ app.config.update(JSON_AS_ASCII=False)
 private_address_regex = re.compile(r"(^127\.0\.0\.1)|(^10\.)|(^172\.1[6-9]\.)|(^172\.2[0-9]\.)|(^172\.3[0-1]\.)|(^192\.168\.)|(^fe80:)|(^FE80:)")
 
 def parser_setup(parser):
+    parser.add_argument("-s", "--share-folder-base", default="/var/lib/oscar")
     parser.set_defaults(func=run)
 
 class AuthRequired(Exception):
@@ -76,7 +77,11 @@ def robots():
 
 @app.route("/")
 def index():
-    return flask.render_template("index.html")
+    service_status = {}
+    if app.config["PRODUCTION"]:
+        service_status["watcher_alive"] = os.system("sudo /etc/init.d/oscar-watch status") == 0
+        service_status["scheduler_alive"] = os.system("sudo /etc/init.d/oscar-sched status") == 0
+    return flask.render_template("index.html", service_status=service_status)
 
 @app.route("/_info")
 def info():
@@ -95,6 +100,12 @@ def info():
     }
     capacity["free"] = ( sysinfo.capacity_string(capacity_info["free"]), 100 - capacity["used"][1] )
     return flask.jsonify({"loadavg":os.getloadavg(),"capacity":capacity,"shares":accessible_shares,"eden":is_eden(flask.request)})
+
+@app.route("/login")
+def login():
+    if not flask.g.username: raise AuthRequired()
+    #else
+    return flask.redirect("./")
 
 ###################
 # SHARE functions #
@@ -155,11 +166,11 @@ def share_search(share_name):
     if q == "" or q == None:
         return flask.jsonify({"count":0, "rows":[]})
     share_path = share["path"].encode("utf-8")
-    start_time = time.clock()
+    start_time = time.time()
     count, rows = search.search(share_path, path, query=q, offset=offset, limit=limit)
     for row in rows:
         row["exists"] = os.path.exists(os.path.join(share_path, row["dir"], row["name"].encode("utf-8")))
-    search_time = time.clock() - start_time
+    search_time = time.time() - start_time
     return flask.jsonify({"q":q, "time":search_time, "count":count, "rows":rows})
 
 @app.route('/<share_name>/<filename>', defaults={'path': ''})
@@ -172,4 +183,5 @@ def share_get_file(share_name, path,filename):
     return flask.send_from_directory(samba.share_real_path(share, path), filename.encode("utf-8"))
 
 def run(args):
+    app.config["SHARE_FOLDER_BASE"] = args.share_folder_base
     app.run(host='0.0.0.0',debug=True)

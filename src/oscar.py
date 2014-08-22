@@ -35,8 +35,11 @@ def remove_preceding_slashes(filename):
 def get_oscar_dir():
     return os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
+def get_database_dir(base_dir):
+    return os.path.join(base_dir, ".oscar")
+
 def get_database_name(base_dir):
-    return os.path.join(base_dir, ".oscar/groonga")
+    return os.path.join(get_database_dir(base_dir), "groonga")
 
 def context(base_dir, min_free_blocks = None, create = False):
     if min_free_blocks is not None:

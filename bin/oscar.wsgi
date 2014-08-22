@@ -7,3 +7,5 @@ import web
 
 application = web.app
 application.config["PRODUCTION"] = True
+application.config["SHARE_FOLDER_BASE"] = "/var/lib/oscar" 
+

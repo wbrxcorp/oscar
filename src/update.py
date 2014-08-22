@@ -9,6 +9,7 @@ import os,argparse,time,logging,multiprocessing,hashlib
 import oscar, groonga, delete,extract,log
 
 blocksize=65536
+fulltext_max_file_size=1024*1024*100 # 100MB
 
 def parser_setup(parser):
     parser.add_argument("base_dir", nargs="+")
@@ -42,7 +43,8 @@ def update_file(base_dir, uuid, real_path):
         row["fulltext"] = hashval
     else:
         try:
-            extracted_content = extract.extract(real_path)
+            if size <= fulltext_max_file_size: # ファイルサイズが規定値以下の場合に限りfulltextをextractする
+                extracted_content = extract.extract(real_path)
         except Exception, e: # 多様なフォーマットを扱うためどういう例外が起こるかまるでわからん
             log.create_log(base_dir, "extract", u"%s (%s): %s" % (real_path.decode("utf-8"), hashval, e.message.decode("utf-8")))
     

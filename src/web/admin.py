@@ -5,9 +5,9 @@ Created on 2014/08/20
 @author: shimarin
 '''
 
-import os,json,getpass,shutil,pwd
+import os,json,getpass,shutil,pwd,tempfile,errno,logging
 import flask
-import oscar,web,samba,init,config,log
+import oscar,web,samba,init,config,log,sync,truncate
 
 app = flask.Blueprint(__name__, "admin")
 
@@ -108,6 +108,39 @@ def share_log(share_name):
 
     return flask.jsonify(log.get_log(share_path, category, offset, limit))
 
+@app.route("/test_sync_origin")
+def share_test_sync_origin():
+    path = flask.request.args.get("path").encode("utf-8")
+    username = flask.request.args.get("username")
+    if username: username = username.encode("utf-8")
+    password = flask.request.args.get("password")
+    if password: password = password.encode("utf-8")
+    
+    tempdir = tempfile.mkdtemp()
+
+    try:
+        mount_command = sync.mount_command(path, username, password, tempdir)
+        rst = os.system("%s && sudo umount %s" % (mount_command, tempdir))
+    finally:
+        os.rmdir(tempdir)
+    return flask.jsonify({"success":rst == 0,"info":rst})
+
+@app.route("/share/<share_name>/truncate", methods=['POST'])
+def share_truncate(share_name):
+    share = samba.get_share(share_name)
+    if not share: return flask.jsonify({"success":False, "info":"SHARENOTEXIST"})
+    share_path = samba.share_real_path(share)
+    if not os.path.isdir(share_path): return flask.jsonify({"success":False, "info":"DIRNOTEXIST"})
+
+    rst = truncate.truncate(samba.share_real_path(share))
+    try:
+        os.symlink("/dev/null", os.path.join(oscar.get_database_dir(share_path), ".walk_requested"))
+    except OSError, e:
+        if e.errno != errno.EEXIST:
+            raise
+    return flask.jsonify({"success":rst, "info":None})
+
+
 ##################
 # USER functions #
 ##################
@@ -124,6 +157,8 @@ def _is_admin_user(user):
     try:
         acct_desc = json.loads(user["acct_desc"])
     except ValueError:
+        logging.exception("_is_admin_user")
+        logging.error("Invalid JSON string in %s's acct_desc field" % user["username"])
         return False
     return "admin" in acct_desc and acct_desc["admin"] == True
 
@@ -136,7 +171,7 @@ def _admin_user_exists():
 def user_get(user_name):
     user = samba.get_user(user_name)
     if not user: return "User not found", 404
-    return flask.jsonify(user)
+    return flask.jsonify({"name":user["username"],"admin":_is_admin_user(user)})
 
 def _is_username_reserved(user_name):
     user_name = user_name.lower()
@@ -154,7 +189,7 @@ def user_create(user_name):
         return flask.jsonify({"success":False, "info":"USERNAMERESERVED"}) 
 
     options = flask.request.json
-    rst = samba.register_user(user_name, options["password"], "{'admin':true}" if "admin" in options and options["admin"] else None)
+    rst = samba.register_user(user_name, options["password"], "{\"admin\":true}" if "admin" in options and options["admin"] else None)
     return flask.jsonify({"success":rst, "info":None})
 
 @app.route("/user/<user_name>/update", methods=['POST'])
@@ -169,7 +204,7 @@ def user_update(user_name):
     if password == "": password = None
     admin = options["admin"] if "admin" in options else False
     if not admin: admin = False
-    rst = samba.register_user(user_name, password, "{'admin':true}" if admin else None)
+    rst = samba.update_user(user_name, password, "{\"admin\":true}" if admin else None)
     return flask.jsonify({"success":rst, "info":None})
 
 @app.route("/user/<user_name>", methods=['DELETE'])

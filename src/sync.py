@@ -40,18 +40,18 @@ def sync(base_dir):
             return False
         try:
             rsync_cmd = "rsync -ax %s/ %s" % (tempdir, base_dir)
-            oscar.log.debug(rsync_cmd)
+            logging.debug(rsync_cmd)
             rst = os.system(rsync_cmd)
             if rst != 0:
-                oscar.log.error("rsync (%s -> %s) returned error code: %d" % (path, base_dir, rst))
+                logging.error("rsync (%s -> %s) returned error code: %d" % (path, base_dir, rst))
                 sync_log(base_dir, path, False, "rsync", rst)
                 return False
         finally:
             umount_cmd = "sudo umount %s" % tempdir
             os.system(umount_cmd)
-            oscar.log.debug(umount_cmd)
+            logging.debug(umount_cmd)
     finally:
-        oscar.log.debug("Deleting tempdir %s" % tempdir)
+        logging.debug("Deleting tempdir %s" % tempdir)
         os.rmdir(tempdir)
 
     sync_log(base_dir, path, True)

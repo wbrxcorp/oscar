@@ -4,11 +4,12 @@ Created on 2014/08/21
 
 @author: shimarin
 '''
-import os,argparse,logging,re,time,hashlib
-import apscheduler.schedulers.background,apscheduler.triggers.cron
+import os,argparse,logging,re,time,hashlib,errno
+import apscheduler.schedulers.background,apscheduler.triggers.cron,apscheduler.triggers.date
 import samba,oscar,config,walk,sync,gc_ft
 
 def parser_setup(parser):
+    parser.add_argument("-s", "--share_registry", default="/etc/samba/smb.conf")
     parser.set_defaults(func=run)
 
 def create_sync_cron_trigger(base_dir):
@@ -32,13 +33,18 @@ def create_walk_cron_trigger(base_dir):
     return apscheduler.triggers.cron.CronTrigger(day_of_week=dow, hour=0, minute=15)
 
 def perform_walk(base_dir):
+    logging.debug("Performing walk on %s" % base_dir)
     with oscar.context(base_dir, oscar.min_free_blocks) as context:
         walk.walk(base_dir, context)
         gc_ft.gc(context) # フルテキストインデックスのgcもする
     # trigger update by creating random symlink
-    symlink = os.path.join(base_dir, ".update_required")
-    os.symlink("/dev/null", symlink)
-    os.unlink(symlink)
+    try:
+        symlink = os.path.join(base_dir, ".update_required")
+        os.symlink("/dev/null", symlink)
+        os.unlink(symlink)
+    except OSError, e:
+        if e.errno != errno.EEXIST:
+            raise
 
 def setup_jobs(sched):
     for share_name, share in samba.get_shares().iteritems():
@@ -48,25 +54,43 @@ def setup_jobs(sched):
             continue
         sync_trigger = create_sync_cron_trigger(base_dir)
         if sync_trigger: sched.add_job(sync.sync, sync_trigger, args=[base_dir])
-        
+
         walk_trigger = create_walk_cron_trigger(base_dir)
         if walk_trigger: sched.add_job(perform_walk, walk_trigger, args=[base_dir])
 
-def run(args):
-    samba.set_share_registry(os.path.join(oscar.get_oscar_dir(), "etc/smb.conf"))
-    oscar.treat_sigterm_as_keyboard_interrupt()
+def wait(sched):
     smbconf_time = samba.share_registry_last_update()
-    sched = apscheduler.schedulers.background.BackgroundScheduler(coalesce=True)
-    setup_jobs(sched)
-    try:
-        sched.start()
-        while True:
-            time.sleep(60)
+    while True:
+        time.sleep(60)
+        try:
+            # smb.confが更新されていたら全ての定時実行ジョブをスケジュールしなおす
             new_smbconf_time = samba.share_registry_last_update()
             if new_smbconf_time > smbconf_time:
                 smbconf_time = new_smbconf_time
                 sched.remove_all_jobs()
                 setup_jobs(sched)
+            # 全ての共有フォルダについて、なんかリクエストがないか調べる
+            for share_name, share in samba.get_shares().iteritems():
+                share_path = samba.share_real_path(share)
+                walk_request_token = os.path.join(oscar.get_database_dir(share_path), ".walk_requested")
+                if os.path.islink(walk_request_token):
+                    os.unlink(walk_request_token)
+                    sched.add_job(perform_walk, apscheduler.triggers.date.DateTrigger(), args=[share_path])
+        except KeyboardInterrupt:
+            raise
+        except:
+            logging.exception("wait")
+            continue
+
+def run(args):
+    logging.debug("share_registry=%s" % args.share_registry)
+    samba.set_share_registry(args.share_registry)
+    oscar.treat_sigterm_as_keyboard_interrupt()
+    sched = apscheduler.schedulers.background.BackgroundScheduler(coalesce=True)
+    setup_jobs(sched)
+    try:
+        sched.start()
+        wait(sched)
     finally:
         sched.shutdown()
 

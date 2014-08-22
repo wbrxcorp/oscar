@@ -5,7 +5,7 @@ _share_registry = "/etc/samba/smb.conf"
 _userdb = "/var/lib/samba/private/passdb.tdb"
 _username_map = "/etc/samba/smbusers"
 
-_sections_to_be_ignored = ("homes","global")
+_reserved_sections = ("homes","global","printers")
 
 def reload_samba():
     os.system("sudo -b -n smbcontrol smbd reload-config")
@@ -35,7 +35,7 @@ def get_shares():
     smbconf = _load_smbconf()
     shares = collections.OrderedDict()
     for section,values in smbconf.iteritems():
-        if section in _sections_to_be_ignored: continue
+        if section in _reserved_sections: continue
         values.setdefault(u"guest ok", "no")
         values.setdefault(u"writable", "no")
         values.setdefault(u"locking", "yes")
@@ -59,6 +59,8 @@ def share_real_path(share, path = None):
     return os.path.join(share[u"path"].encode("utf-8"), path)
 
 def register_share(share_name,share_dir, force_user=None, comment=None, guest_ok=None, writable=None, veto_files=None):
+    if isinstance(share_name, str): share_name = share_name.decode("utf-8")
+    if share_name in _reserved_sections: return False
     smbconf = _load_smbconf()
     section = {u"path":share_dir.decode("utf-8")}
     if force_user: section[u"force user"] = force_user
@@ -73,6 +75,8 @@ def register_share(share_name,share_dir, force_user=None, comment=None, guest_ok
     return True
 
 def update_share(share_name, share_dir, force_user=None, comment=None, guest_ok=None, writable=None, veto_files=None):
+    if isinstance(share_name, str): share_name = share_name.decode("utf-8")
+    if share_name in _reserved_sections: return False
     smbconf = _load_smbconf()
     if share_name not in smbconf: return False
     section = smbconf[share_name]
@@ -96,6 +100,7 @@ def update_share(share_name, share_dir, force_user=None, comment=None, guest_ok=
 
 def unregister_share(share_name):
     if isinstance(share_name, str): share_name = share_name.decode("utf-8")
+    if share_name in _reserved_sections: return False
     smbconf = _load_smbconf()
     if share_name not in smbconf: return False
     del smbconf[share_name]
@@ -148,7 +153,7 @@ def update_user(user_name, password = None, acct_desc = None):
     with _open_passdb() as passdb:
         if not user_name in passdb: return False
         user_record = passdb[user_name]
-        user_record.acct_desc = acct_desc
+        user_record.acct_desc = acct_desc if acct_desc else ""
         if password: user_record.set_password(password)
         passdb[user_name] = user_record
         _update_smbusers(passdb)
