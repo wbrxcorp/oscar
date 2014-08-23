@@ -5,7 +5,7 @@ Created on 2014/08/20
 @author: shimarin
 '''
 
-import os,json,getpass,shutil,pwd,tempfile,errno,logging
+import os,json,getpass,shutil,pwd,tempfile,errno,logging,zipfile,io,time,tarfile,subprocess,stat
 import flask
 import oscar,web,samba,init,config,log,sync,truncate
 
@@ -20,6 +20,54 @@ def before_request():
 @app.route("/")
 def index():
     return flask.render_template("admin.html")
+
+@app.route("/log.zip")
+def log_zip():
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as zip:
+        for root, dirs, files in os.walk("/var/log/oscar"):
+            for file in files:
+                zip.write(os.path.join(root, file), file)
+    buf.seek(0)
+
+    filename = "oscar_system_log_%s.zip" % time.strftime("%Y%m%d%H%M")
+    return flask.send_file(buf, attachment_filename=filename, as_attachment=True, mimetype="application/zip")
+
+@app.route("/update", methods=['POST','PUT'])
+def update():
+    uploaded_file = flask.request.files.get("file")
+    if not uploaded_file: raise web.BadRequest()
+    
+    tempdir = tempfile.mkdtemp()
+    info = None
+    try:
+        with zipfile.ZipFile(uploaded_file, "r") as zip:
+            if zip.testzip() is not None:
+                return flask.jsonify({"success":False,"info":"INVALIDFILE:zip_content"})
+            zip.extractall(tempdir)
+
+        tarfile_name = os.path.join(tempdir, "oscar.tgz")
+        if os.path.isfile(tarfile_name):
+            with tarfile.open(tarfile_name) as tar:
+                tar.extractall(oscar.get_oscar_dir())
+
+        update_script = os.path.join(tempdir, "update-script")
+        if os.path.isfile(update_script):
+            os.chmod(update_script, stat.S_IRUSR|stat.S_IXUSR)
+            try:
+                info = subprocess.check_output([update_script, oscar.get_oscar_dir()])
+            except subprocess.CalledProcessError:
+                return flask.jsonify({"success":False,"info":"UPDATESCRIPTFAIL"})
+    except IOError:
+        return flask.jsonify({"success":False,"info":"INVALIDFILE:ioerror"})
+    except zipfile.BadZipfile:
+        return flask.jsonify({"success":False,"info":"INVALIDFILE:zip"})
+    except tarfile.ReadError:
+        return flask.jsonify({"success":False,"info":"INVALIDFILE:tar"})
+    finally:
+        shutil.rmtree(tempdir)
+    
+    return flask.jsonify({"success":True,"info":info})
 
 ###################
 # SHARE functions #
@@ -153,7 +201,8 @@ def user():
     return flask.Response(oscar.to_json(users),  mimetype='application/json')
 
 def _is_admin_user(user):
-    if "acct_desc" not in user: return False
+    acct_desc = user.get("acct_desc")
+    if not acct_desc or acct_desc == "": return False
     try:
         acct_desc = json.loads(user["acct_desc"])
     except ValueError:

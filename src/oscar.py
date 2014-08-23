@@ -4,6 +4,8 @@ import os,re,uuid,fcntl,errno,logging,json,base64,signal,threading
 import rsa,xattr
 import groonga
 
+version = "1.0.0"
+
 xattr_name = "user.oscar.uuid"
 _pk = "MEgCQQChvFeiMviXgB4RU9LIGJQ4DfxwPobNZHj6LqJYAAeOuwAmj4hpTLNolMNeyxy16p79MF2Om4KRuN8bnK8kVkuvAgMBAAE="
 

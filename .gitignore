@@ -3,10 +3,10 @@
 *#
 *.bak
 lib.tar
+oscar.tgz
 etc
+lib
 shares
 .settings
 oscar.min.js
-oscar.tar
-private.key
 

@@ -20,6 +20,13 @@ class AuthRequired(Exception):
 class NotFound(Exception):
     pass
 
+class BadRequest(Exception):
+    pass
+
+def app_config(config_name):
+    if config_name not in app.config: return None
+    return app.config[config_name]
+
 def is_private_network():
     return private_address_regex.match(flask.request.remote_addr)
 
@@ -51,6 +58,10 @@ def auth_required(error):
 def not_found(error):
     return error.message, 404
 
+@app.errorhandler(BadRequest)
+def bad_request(error):
+    return error.message, 400
+
 @app.route("/static/js/<path:filename>")
 def js(filename):
     return flask.send_from_directory(os.path.join(app.root_path, "static", "js"), filename)
@@ -78,7 +89,7 @@ def robots():
 @app.route("/")
 def index():
     service_status = {}
-    if app.config["PRODUCTION"]:
+    if app_config("PRODUCTION"):
         service_status["watcher_alive"] = os.system("sudo /etc/init.d/oscar-watch status") == 0
         service_status["scheduler_alive"] = os.system("sudo /etc/init.d/oscar-sched status") == 0
     return flask.render_template("index.html", service_status=service_status)
@@ -93,7 +104,7 @@ def info():
         accessible_shares.append({"name":share_name,"comment":comment,"guest_ok":share.as_bool("guest ok")})
     # 共有フォルダが存在するがいずれもアクセス可能な権限を持たない場合は認証が必要
     if len(shares) > 0 and len(accessible_shares) == 0: raise AuthRequired()
-    capacity_info = sysinfo.get_capacity(app.config["SHARE_FOLDER_BASE"])
+    capacity_info = sysinfo.get_capacity(app_config("SHARE_FOLDER_BASE"))
     capacity = {
         "used" : (sysinfo.capacity_string(capacity_info["used"]), capacity_info["used"] * 100 / capacity_info["total"]),
         "total" : ( sysinfo.capacity_string(capacity_info["total"]), 100 )

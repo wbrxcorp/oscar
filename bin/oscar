@@ -1,7 +1,7 @@
 #!/usr/bin/python2.7
 # -*- coding:utf-8 mode:python -*-
 
-import os,sys,argparse,logging
+import os,sys,argparse,logging,logging.handlers
 
 __dirname = os.path.dirname(os.path.abspath(__file__))
 
@@ -23,6 +23,7 @@ import watch
 import license
 import schedule
 import gc_ft
+import version
 
 __author__ = "Walbrix Corporation"
 
@@ -38,13 +39,21 @@ if os.path.exists("/etc/localtime") and not os.getenv("TZ"):
     if localtime.startswith("/usr/share/zoneinfo/"):
         os.environ["TZ"] = localtime[20:]
 
-for m in [init,add,search,web,walk,update,extract,watch,license,schedule,gc_ft]:
+for m in [init,add,search,web,walk,update,extract,watch,license,schedule,gc_ft,version]:
     subparser = subparsers.add_parser(m.__name__)
     m.parser_setup(subparser)
 
 args = parser.parse_args()
 
-if args.verbose: logging.basicConfig(level=logging.DEBUG)
+if args.log:
+	handler = logging.handlers.RotatingFileHandler(args.log, 'a', 1024*1024*100,9)
+	handler.setFormatter(
+		logging.Formatter("[%(asctime)s %(name)s %(levelname)s] %(message)s"))
+	logging.root.addHandler(handler)
+else:
+	logging.basicConfig()
+
+logging.root.setLevel(logging.DEBUG if args.verbose else logging.INFO)
 
 result = args.func(args)
 

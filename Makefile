@@ -1,4 +1,4 @@
-all: lib.tar
+all: oscar.tgz
 
 test:
 	cd src && python -m test.hogetest
@@ -15,9 +15,12 @@ src/web/static/js/oscar.min.js: src/web/static/js/oscar.js
 lib.tar: compile src/web/static/js/oscar.min.js
 	tar cvf $@ --exclude='*.py' --exclude='*~' --exclude='test' --exclude='web/static/js/test' --exclude='oscar.js' -C src .
 
+oscar.tgz: lib.tar bin/oscar bin/oscar.wsgi
+	mkdir -p lib
+	tar xvf lib.tar -C lib
+	tar zcvf $@ --exclude='src' --exclude='*~' bin lib
+
 install: all
-	mkdir -p /opt/oscar/etc /opt/oscar/lib /opt/oscar/bin
-	tar xvf lib.tar -C /opt/oscar/lib
-	cp -a bin/oscar bin/oscar.wsgi /opt/oscar/bin
-	chown -R oscar /opt/oscar
+	mkdir -p /opt/oscar/etc
+	tar zxvf oscar.tgz -C /opt/oscar
 

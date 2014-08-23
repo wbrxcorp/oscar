@@ -1,4 +1,4 @@
-angular.module("Oscar", ["ngResource","ngSanitize","ui.bootstrap"])
+angular.module("Oscar", ["ngResource","ngSanitize","ui.bootstrap","angularFileUpload"])
 .controller("IndexController", ["$scope", "$resource", function($scope, $resource) {
     var info = $resource("./_info");
     $scope.info = info.get({}, function(result) {
@@ -267,7 +267,8 @@ angular.module("Oscar", ["ngResource","ngSanitize","ui.bootstrap"])
         testSyncOrigin.get({
             path:$scope.share.options.syncorigin.path,
             username:$scope.share.options.syncorigin.username,
-            password:$scope.share.options.syncorigin.password}, function(result) {
+            password:$scope.share.options.syncorigin.password},
+            function(result) {
                 pb.close()
                 if (result.success) {
                     messageBox("同期元への接続テストに成功しました。");
@@ -335,6 +336,33 @@ angular.module("Oscar", ["ngResource","ngSanitize","ui.bootstrap"])
     }
     
     $scope.load_users();
+}])
+.controller("EtcAdminController", ["$scope","$resource","$upload", "messageBox","progressBar", 
+                                function($scope, $resource,$upload, messageBox,progressBar) {
+    $scope.message = "開発元から提供されているアップデートファイルを選択してください。"
+    $scope.onFileSelect = function($files) {
+        for (var i = 0; i < $files.length && i < 1; i++) {
+            var file = $files[i];
+            var pb = progressBar("アップデートを実行中...");
+            $scope.upload = $upload.upload({
+               "url":"update",
+               file: file,
+            }).success(function(data, status, headers, config) {
+                pb.close()
+                if (data.success) {
+                    $scope.message = "アップデート完了";
+                    if (data.info) {
+                        $scope.message += ": " + data.info;
+                    }
+                } else {
+                    $scope.message = "アップデート失敗: " + data.info
+                }
+            }).error(function() {
+                pb.close()
+                console.log("通信エラーが発生しました");
+            });
+        }
+    }
 }])
 .directive('focus', ["$timeout", function($timeout) {
     return {

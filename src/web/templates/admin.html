@@ -200,6 +200,14 @@
         </div>
       </div>
     </tab>
+    <tab heading="その他" ng-controller="EtcAdminController">
+      <h3>システムログのダウンロード</h3>
+      <p><a href="log.zip" class="btn btn-default">zip形式でダウンロード</a></p>
+      <h3>ソフトウェアのアップデート</h3>
+      <p>アップデートファイル: <input type="file" ng-file-select="onFileSelect($files)"></p>
+      <p>{{message}}</p>
+    </tab>
+    
   </tabset>
 </div>
 {%endraw%}

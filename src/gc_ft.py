@@ -3,8 +3,10 @@ Created on 2014/08/20
 
 @author: shimarin
 '''
-import argparse,logging
+import os,argparse,logging
 import oscar,groonga
+
+logger = logging.getLogger(__name__)
 
 def parser_setup(parser):
     parser.add_argument("base_dir", nargs="+")
@@ -24,7 +26,12 @@ def gc(context):
         offset += len(rows)
 
 def run(args):
+    logging.debug("RUN")
+    logger.debug("run")
     for base_dir in args.base_dir:
+        if not os.path.isfile(oscar.get_database_name(base_dir)):
+            logger.error("%s is not a proper base_dir" % base_dir)
+            continue
         with oscar.context(base_dir, oscar.min_free_blocks) as context:
             gc(context)
 

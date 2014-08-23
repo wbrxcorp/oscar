@@ -5,7 +5,7 @@ Created on 2014/08/20
 '''
 # -*- coding: utf-8 -*-
 import os,base64,argparse
-import rsa,xattr
+import rsa
 import oscar
 
 privatekey_file = os.path.join(oscar.get_oscar_dir(), "etc/private.key")
@@ -36,7 +36,8 @@ def run(args):
             print license_string
             print sign(license_string, privkey)
     else:
-        print "License string: %s" % oscar.get_license_string()
+        license_string = oscar.get_license_string()
+        print license_string if license_string else "(Evaluation license)"
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
