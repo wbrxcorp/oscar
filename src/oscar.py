@@ -38,6 +38,7 @@ def get_oscar_dir():
     return os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
 def get_database_dir(base_dir):
+    if isinstance(base_dir, unicode): base_dir = base_dir.encode("utf-8")
     return os.path.join(base_dir, ".oscar")
 
 def get_database_name(base_dir):
