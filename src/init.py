@@ -5,7 +5,7 @@ Created on 2014/08/07
 @author: shimarin
 '''
 
-import argparse
+import argparse,logging
 import oscar,groonga
 
 ## このtokenizerを使うと巨大なテキストを入れてサーチしたときに死ぬ
@@ -61,7 +61,7 @@ schema = [
     "column_create --table LogCategory --name category --flags COLUMN_INDEX --type Log --source category"
 ]
 
-log = oscar.get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 def parser_setup(parser):
     parser.add_argument("base_dir", nargs="+")
