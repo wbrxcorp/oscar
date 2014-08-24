@@ -1,6 +1,6 @@
 # encoding: utf-8
 
-import os,re,uuid,fcntl,errno,logging,json,base64,signal,threading
+import os,re,uuid,fcntl,errno,logging,json,base64,signal,threading,stat
 import rsa,xattr
 import groonga
 
@@ -61,6 +61,9 @@ def get_object_uuid(real_path):
                 raise e
             object_uuid = uuid.uuid4().hex
             try:
+                mode = os.fstat(fd).st_mode
+                if not (mode & stat.S_IWUSR): # read only は強制解除
+                    os.fchmod(fd, mode | stat.S_IWUSR)
                 xattr.set(real_path, xattr_name, object_uuid)
             except:
                 logger.exception("xattr.set:%s" % real_path)
