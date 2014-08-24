@@ -19,7 +19,6 @@ def _walk(base_dir, context):
         if r.startswith('.'): continue
         names = filter(lambda x:not x.startswith('.'), files + dirs)
         uuids = add.batch_add(context, base_dir, r, names)
-        if uuids is None: raise Exception("WTF")
         if uuids: uuid_set.update(uuids)
 
     logging.debug("Discovering deleted files...(# of preserved uuids=%s)" % len(uuid_set))
