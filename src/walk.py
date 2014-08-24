@@ -13,6 +13,7 @@ def parser_setup(parser):
     parser.set_defaults(func=run)
 
 def _walk(base_dir, context):
+    groonga.load(context, "Entries", {"_key":"ROOT"})
     uuid_set = set()
     for root, dirs, files in os.walk(base_dir):
         r = re.sub(r'^\/+', "", root[len(base_dir):])
