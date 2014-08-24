@@ -10,7 +10,7 @@ compile:
 	python2.7 -m compileall -q src
 
 src/web/static/js/oscar.min.js: src/web/static/js/oscar.js
-    python -c 'import sys,jsmin;print jsmin.jsmin(open(sys.argv[1]).read())' $< > $@
+	python -c 'import sys,jsmin;print jsmin.jsmin(open(sys.argv[1]).read())' $< > $@
 
 lib.tar: compile src/web/static/js/oscar.min.js
 	tar cvf $@ --exclude='*.py' --exclude='*~' --exclude='test' --exclude='web/static/js/test' --exclude='oscar.js' -C src .
