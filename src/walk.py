@@ -16,8 +16,8 @@ def _walk(base_dir, context):
     uuid_set = set()
     for root, dirs, files in os.walk(base_dir):
         r = re.sub(r'^\/+', "", root[len(base_dir):])
-        if r.startswith('.'): continue
-        names = filter(lambda x:not x.startswith('.'), files + dirs)
+        if r == ".oscar" or r.startswith(".oscar/"): continue
+        names = filter(lambda x:not x.startswith('.'), files) + dirs # ディレクトリは .ではじまるものをフィルタしない、後が面倒だから
         uuids = add.batch_add(context, base_dir, r, names)
         if uuids: uuid_set.update(uuids)
 
