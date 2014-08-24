@@ -15,19 +15,21 @@ def truncate_table(context, table_name):
         command.add_argument("table", table_name)
         return json.loads(command.execute())
 
-def _truncate(context):
-    truncate_table(context, "Files")
-    truncate_table(context, "Fulltext")
-    truncate_table(context, "FileQueue")
-    truncate_table(context, "Log")
+def _truncate(context, truncate_fulltext = False, truncate_log = False):
+    truncate_table(context, "Entries")
+    groonga.load(context, "Entries", {"_key":"ROOT"})
+    if truncate_fulltext:
+        truncate_table(context, "Fulltext")
+    if truncate_log:
+        truncate_table(context, "Log")
     return True
 
-def truncate(base_dir_or_context):
+def truncate(base_dir_or_context, truncate_fulltext = False, truncate_log = False):
     if groonga.is_context(base_dir_or_context):
-        return _truncate(base_dir_or_context)
+        return _truncate(base_dir_or_context, truncate_fulltext, truncate_log)
     else:
         with oscar.context(base_dir_or_context) as context: # assume base_dir
-            return _truncate(context)
+            return _truncate(context, truncate_fulltext, truncate_log)
     #else
 
 def run(args):
