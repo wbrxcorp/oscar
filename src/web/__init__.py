@@ -35,7 +35,7 @@ def is_eden(request):
     return "MSIE " in request.headers.get('User-Agent') and is_private_network()
 
 def check_access_credential(share):
-    if share["guest ok"]: return is_private_network()
+    if share.as_bool("guest ok"): return is_private_network()
     return flask.g.username and samba.access_permitted(share, flask.g.username)
 
 def require_access_credential(share):

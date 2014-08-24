@@ -17,20 +17,12 @@ def _walk(base_dir, context):
     for root, dirs, files in os.walk(base_dir):
         r = re.sub(r'^\/+', "", root[len(base_dir):])
         if r.startswith('.'): continue
-        for file in files:
-            if file.startswith('.') or os.path.islink(file): continue
-            filename = os.path.join(r, file)
-            uuid = add.add(base_dir, filename, context)
-            uuid_set.add(uuid)
-            logging.debug("file %s:%s" % (uuid, filename))
-        for d in dirs:
-            if d.startswith('.') or os.path.islink(file): continue
-            dirname = os.path.join(r, d)
-            uuid = add.add(base_dir, dirname, context)
-            uuid_set.add(uuid)
-            logging.debug("dir %s:%s" % (uuid, dirname))
-    
-    logging.debug("Discovering deleted files...")
+        names = filter(lambda x:not x.startswith('.'), files + dirs)
+        uuids = add.batch_add(context, base_dir, r, names)
+        if uuids is None: raise Exception("WTF")
+        if uuids: uuid_set.update(uuids)
+
+    logging.debug("Discovering deleted files...(# of preserved uuids=%s)" % len(uuid_set))
     offset = 0
     total = 1
     while offset < total:

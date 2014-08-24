@@ -72,6 +72,7 @@ def _init(context):
         #log.debug(command)
         if not groonga.execute(context, command):
             raise Exception("Command failed: %s" % command)
+    groonga.load(context, "Entries", {"_key":"ROOT"})
 
 def init(base_dir_or_context):
     if groonga.is_context(base_dir_or_context):

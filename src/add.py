@@ -8,6 +8,8 @@ Created on 2014/08/14
 import argparse,re,os,logging,stat
 import oscar, groonga
 
+logger = logging.getLogger(__name__)
+
 def parser_setup(parser):
     parser.add_argument("file", nargs="+")
 
@@ -19,6 +21,81 @@ def get_ancestors(base_dir, path_name):
         ancestors.add(oscar.get_object_uuid(real_path))
         path_name = oscar.get_parent_dir(path_name)
     return list(ancestors)
+
+def batch_add(context, base_dir, parent_dir, names):
+    real_parent_dir = oscar.get_real_path(base_dir, parent_dir)
+    parent_uuid = oscar.get_object_uuid(real_parent_dir) if parent_dir not in ("", "/", None) else "ROOT"
+    if not parent_uuid:
+        logger.error(u"No such parent directory: %s" % real_parent_dir.decode("utf-8"))
+        return None
+    if not groonga.get(context, "Entries", parent_uuid, "_key"):
+        logger.error(u"Parent dir(%s:%s) not registered" % (real_parent_dir.decode("utf-8"), parent_uuid))
+        return None
+
+    logger.debug(u"Batch adding: %s/%s:%s" % (base_dir.decode("utf-8"), parent_dir.decode("utf-8"), names))
+
+    rows_to_load = []
+    uuids = []
+    for name in names:
+        row = setup_entry_row(context, base_dir, os.path.join(parent_dir, name), parent_uuid)
+        if row and "_key" in row:
+            uuids.append(row["_key"])
+            if len(row) > 1: rows_to_load.append(row)
+
+    if len(rows_to_load) > 0 and groonga.load(context, "Entries", rows_to_load) == 0:
+        raise Exception("Loading into Entries table failed")
+    
+    return uuids
+
+def setup_entry_row(context, base_dir, path_name, parent_uuid = None):
+    real_path = oscar.get_real_path(base_dir, path_name)
+    if os.path.islink(real_path): return None
+    uuid = oscar.get_object_uuid(real_path)
+
+    # リアルファイルシステムから先祖全員のuuidを得る
+    ancestors = get_ancestors(base_dir, path_name)
+
+    new_entry_row = {"_key":uuid}
+    entry = groonga.get(context, "Entries", uuid, "name,parent,mtime,ancestors")
+    
+    # 所属先ディレクトリ
+    parent_dir = oscar.get_parent_dir(path_name)
+    if parent_uuid is None:
+        # 呼び出し元から所属先ディレクトリのUUIDが与えられていない場合、データベース上に本当にあるかどうか
+        # わからないので再帰的に_addする
+        parent_uuid = _add(base_dir, parent_dir, context) if parent_dir not in ("", "/", None) else "ROOT"
+    # 自身の名前
+    basename = oscar.get_basename(path_name)
+
+    # mtimeやsizeなどのstat
+    try:
+        s = os.stat(real_path)
+    except OSError: # タッチの差でファイルが消えてたりしたとき
+        new_entry_row["dirty"] = True
+        return new_entry_row if entry else None
+
+    if entry:
+        entry_name,entry_parent,entry_mtime,entry_ancestors = entry
+        # 親が変わっている場合はすぐに変更
+        if entry_parent != parent_uuid:
+            new_entry_row["parent"] = parent_uuid
+            # TODO: フォルダの親が変わった時は全ての子孫の先祖リストをなんとかして上書きしなければならない
+        # 名前の変更も dirtyにだけして後に任せる手はあるが、小さい処理なのでここでやってしまう
+        if entry_name.encode("utf-8") != basename: new_entry_row["name"] = basename
+        # データベース上の先祖リストとリアルの先祖リストに食い違いがある場合は上書きする
+        if set(entry_ancestors) != set(ancestors): new_entry_row["ancestors"] = ancestors
+        if entry_mtime != s.st_mtime and not stat.S_ISDIR(s.st_mode): # ディレクトリの mtime違いはいちいち反映させても無駄なので見逃す
+            new_entry_row["dirty"] = True
+            logging.debug("dirty due to mtime change %d:%d" % (entry_mtime, s.st_mtime))
+    else:
+        new_entry_row.update({"parent":parent_uuid, "name":basename, "ancestors":ancestors,"mtime":s.st_mtime})
+        if os.path.isdir(real_path):
+            # ディレクトリの場合は中身まで見る必要がないので cleanで登録
+            new_entry_row.update({"size":-1, "dirty":False})
+        else:
+            new_entry_row.update({"size":s.st_size, "dirty":True})
+
+    return new_entry_row
 
 def _add(base_dir, path_name, context):
     real_path = oscar.get_real_path(base_dir, path_name)
@@ -42,55 +119,17 @@ def _add(base_dir, path_name, context):
             real_path = oscar.get_real_path(base_dir, os.path.join(dirname, name))
             # compare to real thing and make it dirty if UUID is different
             if not os.path.exists(real_path) or oscar.get_object_uuid(real_path) != _key:
-                groonga.load(context, "Entries", {"_key":_key, "dirty":True})
+                oscar.mark_as_dirty(context, _key)
             scan_same_name_entries_recursively(path_elements[1:], _key, os.path.join(dirname, name), loop_detector)
     scan_same_name_entries_recursively(re.sub(r'^\/+', "", os.path.normpath(path_name)).split("/"))
 
-    # リアルファイルシステムから先祖全員のuuidを得る
-    ancestors = get_ancestors(base_dir, path_name)
+    row_to_load = setup_entry_row(context, base_dir, path_name)
+    if not row_to_load or "_key" not in row_to_load: return None
+    #else
+    if len(row_to_load) > 1 and groonga.load(context, "Entries", row_to_load) == 0:
+        raise Exception("Loading into Entries table failed")
 
-    entry = groonga.get(context, "Entries", uuid, "name,parent,mtime,ancestors")
-    basename = oscar.get_basename(path_name)
-    if entry:
-        entry_name,entry_parent,entry_mtime,entry_ancestors = entry
-        # データベース上に既にエントリが存在する場合は、ファイル名とmtimeとparentをチェックして必要なら変更したり dirtyフラグを付けたりする
-        obj_to_update = {"_key":uuid}
-        # 親が変わっている場合はすぐに変更
-        parent_dir = oscar.get_parent_dir(path_name)
-        parent_uuid = oscar.get_object_uuid(oscar.get_real_path(base_dir, parent_dir)) if parent_dir not in (None, "", "/") else "ROOT"
-        if entry_parent != parent_uuid:
-            obj_to_update["parent"] = parent_uuid
-            # TODO: フォルダの親が変わった時は全ての子孫の先祖リストをなんとかして上書きしなければならない
-        # 名前の変更も dirtyにだけして後に任せる手はあるが、小さい処理なのでここでやってしまう
-        if entry_name.encode("utf-8") != basename: obj_to_update["name"] = basename
-        # データベース上の先祖リストとリアルの先祖リストに食い違いがある場合は上書きする
-        if set(entry_ancestors) != set(ancestors): obj_to_update["ancestors"] = ancestors
-        try:
-            s = os.stat(real_path)
-            if entry_mtime != s.st_mtime and not stat.S_ISDIR(s.st_mode): # ディレクトリの mtime違いはいちいち反映させても無駄なので見逃す
-                obj_to_update["dirty"] = True
-                logging.debug("dirty due to mtime change %d:%d" % (entry_mtime, s.st_mtime))
-        except OSError: # タッチの差でファイルが消えてたりしたとき
-            obj_to_update["dirty"] = True
-        if len(obj_to_update) > 1:
-            groonga.load(context, "Entries", obj_to_update)
-    else:
-        # データベース上にエントリが存在しない場合は、再帰的に最上位のディレクトリまで _addを実行したのちに自分自身を dirty=trueにて登録する
-        parent_dir = oscar.get_parent_dir(path_name)
-        #logging.debug(parent_dir)
-        parent_uuid = _add(base_dir, parent_dir, context) if parent_dir not in ("", "/", None) else "ROOT"
-        obj_to_insert = {"_key":uuid, "parent":parent_uuid, "name":basename, "ancestors":ancestors}
-        s = os.stat(real_path)
-        obj_to_insert["mtime"] = s.st_mtime
-        if os.path.isdir(real_path):
-            obj_to_insert["size"] = -1
-            obj_to_insert["dirty"] = False  # ディレクトリの場合は中身まで見る必要がないので cleanで登録
-        else:
-            obj_to_insert["size"] = s.st_size
-            obj_to_insert["dirty"] = True
-        if groonga.load(context, "Entries", obj_to_insert) == 0:
-            raise Exception("Loading into Entries table failed")
-    return uuid
+    return row_to_load.get("_key")
 
 def add(base_dir, name, context = None):
     if context:

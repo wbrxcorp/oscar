@@ -56,41 +56,38 @@ def update_file(base_dir, uuid, real_path):
     
         groonga.load(context, "Entries", row)
 
-def _update(base_dir, context, concurrency = 1):
-    while True:
-        files_to_update = []
-        
-        total, rows = groonga.select(context, "Entries", output_columns="_key,parent,size", filter="dirty", limit=100)
-        if len(rows) == 0: break
-        for row in rows:
-            uuid, parent, size = row
-            if parent == "":    # parentが "" なレコードは orphanなので無条件に削除対象となる
-                delete.delete_by_uuid(context, uuid)
-                continue
-            path_name = oscar.get_path_name(context, uuid)
-            real_path = os.path.join(base_dir, path_name)
-            if size < 0 and os.path.isdir(real_path) and oscar.get_object_uuid(real_path) == uuid:
-                oscar.mark_as_clean(context, uuid)
-            elif os.path.isfile(real_path) and oscar.get_object_uuid(real_path) == uuid:
-                files_to_update.append((uuid, real_path))
-            else:
-                delete.delete_by_uuid(context, uuid)
-        
-        pool = multiprocessing.Pool(concurrency)
-        for file_to_update in files_to_update:
-            uuid, real_path = file_to_update
-            pool.apply_async(update_file, (base_dir, uuid, real_path))
-        pool.close()
-        pool.join()
+def _update(base_dir, context, concurrency = 1, limit = 1000):
+    files_to_update = []
 
-        time.sleep(1) # 最悪、無限ループした際にCPUを使い潰すのを防ぐ
+    total, rows = groonga.select(context, "Entries", output_columns="_key,parent,size", filter="dirty", limit=limit)
+    if len(rows) == 0: return
+    for row in rows:
+        uuid, parent, size = row
+        if parent == "":    # parentが "" なレコードは orphanなので無条件に削除対象となる
+            delete.delete_by_uuid(context, uuid)
+            continue
+        path_name = oscar.get_path_name(context, uuid)
+        real_path = os.path.join(base_dir, path_name)
+        if size < 0 and os.path.isdir(real_path) and oscar.get_object_uuid(real_path) == uuid:
+            oscar.mark_as_clean(context, uuid)
+        elif os.path.isfile(real_path) and oscar.get_object_uuid(real_path) == uuid:
+            files_to_update.append((uuid, real_path))
+        else:
+            delete.delete_by_uuid(context, uuid)
+    
+    pool = multiprocessing.Pool(concurrency)
+    for file_to_update in files_to_update:
+        uuid, real_path = file_to_update
+        pool.apply_async(update_file, (base_dir, uuid, real_path))
+    pool.close()
+    pool.join()
 
-def update(base_dir, context = None, concurrency = 1):
+def update(base_dir, context = None, concurrency = 1, limit = 1000):
     if context:
-        _update(base_dir, context)
+        _update(base_dir, context, concurrency, limit)
     else:
         with oscar.context(base_dir, oscar.min_free_blocks) as context:
-            _update(base_dir, context)
+            _update(base_dir, context, concurrency, limit)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

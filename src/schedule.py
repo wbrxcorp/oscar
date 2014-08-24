@@ -9,7 +9,7 @@ import apscheduler.schedulers.background,apscheduler.triggers.cron,apscheduler.t
 import samba,oscar,config,walk,sync,gc_ft
 
 def parser_setup(parser):
-    parser.add_argument("-s", "--share_registry", default="/etc/samba/smb.conf")
+    parser.add_argument("-s", "--share-registry", default="/etc/samba/smb.conf")
     parser.set_defaults(func=run)
 
 def create_sync_cron_trigger(base_dir):

@@ -7,7 +7,7 @@ Created on 2014/08/15
 
 import argparse,os,logging,multiprocessing,threading
 import pyinotify
-import oscar,add,update,groonga
+import oscar,add,update,groonga,samba
 
 basedirs = None
 condition = threading.Condition()
@@ -15,7 +15,8 @@ stop_event = threading.Event()
 
 def parser_setup(parser):
     parser.add_argument("dir", nargs="+")
-    parser.add_argument("-u", "--update-interval", type=int, default=10)
+    parser.add_argument("-s", "--share-registry", default="/etc/samba/smb.conf")
+    parser.add_argument("-u", "--update-interval", type=int, default=60)
     parser.set_defaults(func=run)
 
 def process_event(base_dir, context, event_mask, event_pathname):
@@ -67,18 +68,23 @@ def watch(dirs):
                     condition.notifyAll()
         # do something if necessary
 
-def update_loop():
+def update_loop(update_interval):
     def do_update(base_dirs):
+        if not base_dirs:
+            base_dirs = filter(lambda x:os.path.isfile(oscar.get_database_name(x)),
+                                map(lambda x:samba.share_real_path(x), samba.get_shares().values()))
+
         for base_dir in base_dirs:
             logging.debug("updating %s" % base_dir)
-            update.update(base_dir, concurrency = multiprocessing.cpu_count() + 1)
+            update.update(base_dir, concurrency = multiprocessing.cpu_count() + 1, limit=1000)
 
     while not stop_event.is_set():
         with condition:
             if len(basedirs) == 0:
-                condition.wait(10)
-                if len(basedirs) == 0 or stop_event.is_set(): continue
-            update_proc = multiprocessing.Process(target=do_update, args=(list(basedirs),))
+                condition.wait(update_interval)
+                if stop_event.is_set(): break
+            args = (list(basedirs) if len(basedirs) > 0 else None,) 
+            update_proc = multiprocessing.Process(target=do_update, args=args)
             basedirs.clear()
         update_proc.start()
         while update_proc.is_alive() and not stop_event.is_set():
@@ -91,7 +97,8 @@ def run(args):
     basedirs = set()
     
     logging.info("Start updater thread")
-    updater = threading.Thread(target=update_loop)
+    samba.set_share_registry(args.share_registry)
+    updater = threading.Thread(target=update_loop, args=(args.update_interval, ))
     #updater.setDaemon(True)
     updater.start()
 
