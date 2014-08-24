@@ -9,27 +9,13 @@ version = "1.0.0"
 xattr_name = "user.oscar.uuid"
 _pk = "MEgCQQChvFeiMviXgB4RU9LIGJQ4DfxwPobNZHj6LqJYAAeOuwAmj4hpTLNolMNeyxy16p79MF2Om4KRuN8bnK8kVkuvAgMBAAE="
 
-global_logger = None
+logger = logging.getLogger(__name__)
 min_free_blocks = 2500
 
 class DiskFullException(Exception):
     pass
 
-def set_global_logger(logger):
-    global global_logger
-    global_logger = logger
 
-def get_logger(name):
-    if global_logger:
-        logger = global_logger.getChild(name)
-    else:
-        logger = logging.getLogger(name)
-        handler = logging.StreamHandler()
-        handler.setFormatter(logging.Formatter("[%(asctime)s %(name)s %(levelname)s] %(message)s"))
-        logger.addHandler(handler)
-    return logger
-
-log = get_logger(__name__)
 
 def remove_preceding_slashes(filename):
     return re.sub(r'^\/+', "", filename)
@@ -70,9 +56,15 @@ def get_object_uuid(real_path):
         try:
             object_uuid = xattr.get(real_path, xattr_name)
         except IOError, e:
-            if e.errno != errno.ENODATA: raise e
+            if e.errno != errno.ENODATA:
+                logger.exception("xattr.get:%s" % real_path)
+                raise e
             object_uuid = uuid.uuid4().hex
-            xattr.set(real_path, xattr_name, object_uuid)
+            try:
+                xattr.set(real_path, xattr_name, object_uuid)
+            except:
+                logger.exception("xattr.set:%s" % real_path)
+                raise
         return object_uuid
     finally:
         fcntl.flock(fd,fcntl.LOCK_UN)
