@@ -12,6 +12,7 @@ import oscar,add,update,groonga,samba
 basedirs = None
 condition = threading.Condition()
 stop_event = threading.Event()
+logger = logging.getLogger(__name__)
 
 def parser_setup(parser):
     parser.add_argument("dir", nargs="+")
@@ -106,7 +107,12 @@ def run(args):
 
     oscar.treat_sigterm_as_keyboard_interrupt()
     try:
-        watch(args.dir)
+        while True:
+            try:
+                watch(args.dir)
+            except pyinotify.WatchManagerError:
+                logger.info("Watch restarting...")
+                time.sleep(1)
     finally:
         stop_event.set()
         with condition:
