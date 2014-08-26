@@ -61,13 +61,15 @@ def watch(dirs):
     wm.add_watch(dirs, mask, rec=True,auto_add=True,exclude_filter=exclude)
 
     while True:
-        if notifier.check_events(5000):
-            with condition:
-                notifier.read_events()
-                notifier.process_events()
-                if basedirs and len(basedirs) > 0:
-                    condition.notifyAll()
-        # do something if necessary
+        try:
+            if notifier.check_events(5000):
+                with condition:
+                    notifier.read_events()
+                    notifier.process_events()
+                    if basedirs and len(basedirs) > 0:
+                        condition.notifyAll()
+        except pyinotify.WatchManagerError:
+            time.sleep(1)
 
 def update_loop(update_interval):
     def do_update(base_dirs):
@@ -107,12 +109,7 @@ def run(args):
 
     oscar.treat_sigterm_as_keyboard_interrupt()
     try:
-        while True:
-            try:
-                watch(args.dir)
-            except pyinotify.WatchManagerError:
-                logger.info("Watch restarting...")
-                time.sleep(1)
+        watch(args.dir)
     finally:
         stop_event.set()
         with condition:
