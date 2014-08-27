@@ -2,6 +2,7 @@
 # -*- coding:utf-8 mode:python -*-
 
 import os,sys,argparse,logging,logging.handlers
+import xattr
 
 __dirname = os.path.dirname(os.path.abspath(__file__))
 
@@ -30,6 +31,7 @@ __author__ = "Walbrix Corporation"
 parser = argparse.ArgumentParser()
 parser.add_argument("-v", "--verbose", action="store_true")
 parser.add_argument("-l", "--log", default=None)
+parser.add_argument("--log-commit-id", action="store_true")
 
 subparsers = parser.add_subparsers()
 
@@ -54,6 +56,15 @@ else:
 	logging.basicConfig()
 
 logging.root.setLevel(logging.DEBUG if args.verbose else logging.INFO)
+
+if args.log_commit_id:
+	logger = logging.getLogger(__name__)
+	
+	try:
+		commit_id = xattr.get(__file__, "user.oscar.commit_id")
+		logger.info("Commit id: %s" % commit_id)
+	except:
+		logger.info("No commit id detected.")
 
 result = args.func(args)
 

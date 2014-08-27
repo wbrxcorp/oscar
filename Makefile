@@ -16,11 +16,12 @@ lib.tar: compile src/web/static/js/oscar.min.js
 	tar cvf $@ --exclude='*.py' --exclude='*~' --exclude='test' --exclude='web/static/js/test' --exclude='oscar.js' -C src .
 
 oscar.tgz: lib.tar bin/oscar bin/oscar.wsgi
+	setfattr -n user.oscar.commit_id -v `git rev-parse HEAD` bin/oscar
 	mkdir -p lib
 	tar xvf lib.tar -C lib
-	tar zcvf $@ --exclude='src' --exclude='*~' bin lib
+	tar zcvf $@ --xattrs --exclude='src' --exclude='*~' bin lib
 
 install: all
 	mkdir -p /opt/oscar/etc
-	tar zxvf oscar.tgz -C /opt/oscar
+	tar zxvf oscar.tgz --xattrs -C /opt/oscar
 

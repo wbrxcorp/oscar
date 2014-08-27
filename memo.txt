@@ -1,2 +1,3 @@
 http://victorbjelkholm.github.io/ngProgress/ の導入？
 searchには start timeを入れて返す（js側でこれをチェックすることにより、前にやった検索の結果が表示されてしまうのを防ぐ）
+web.admin.update()は tar --xattrs を呼び出すように変更する
