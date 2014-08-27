@@ -112,6 +112,7 @@ def run(args):
         watch(args.dir)
     except:
         logger.exception("run")
+        raise
     finally:
         stop_event.set()
         with condition:
