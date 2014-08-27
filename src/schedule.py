@@ -43,7 +43,7 @@ def perform_walk(base_dir):
         os.symlink("/dev/null", symlink)
         os.unlink(symlink)
     except OSError, e:
-        if e.errno != errno.EEXIST:
+        if e.errno not in (errno.EEXIST, errno.ENOENT):
             raise
 
 def setup_jobs(sched):
