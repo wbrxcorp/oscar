@@ -110,6 +110,8 @@ def run(args):
     oscar.treat_sigterm_as_keyboard_interrupt()
     try:
         watch(args.dir)
+    except:
+        logger.exception("run")
     finally:
         stop_event.set()
         with condition:
