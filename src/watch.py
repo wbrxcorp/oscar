@@ -25,7 +25,10 @@ def process_event(base_dir, context, event_mask, event_pathname):
     if (event_mask & pyinotify.IN_CLOSE_WRITE) or (event_mask & pyinotify.IN_MOVED_TO) or ((event_mask & pyinotify.IN_CREATE) and (event_mask & pyinotify.IN_ISDIR)): # @UndefinedVariable
         if not (event_mask & pyinotify.IN_ISDIR) and os.path.basename(event_pathname).startswith('.'): return # @UndefinedVariable
         logging.debug(u"Adding %s to %s" % (event_pathname.decode("utf-8"), base_dir.decode("utf-8")))
-        add.add(base_dir, event_pathname, context)
+        try:
+            add.add(base_dir, event_pathname, context)
+        except OSError:
+            logger.exception()
     elif (event_mask & pyinotify.IN_DELETE) or (event_mask & pyinotify.IN_MOVED_FROM): # @UndefinedVariable
         for uuid in oscar.find_entries_by_path(context, event_pathname):
             entry = groonga.get(context, "Entries", uuid, "size")
