@@ -28,7 +28,7 @@ def process_event(base_dir, context, event_mask, event_pathname):
         try:
             add.add(base_dir, event_pathname, context)
         except OSError:
-            logger.exception()
+            logger.exception("add.add")
     elif (event_mask & pyinotify.IN_DELETE) or (event_mask & pyinotify.IN_MOVED_FROM): # @UndefinedVariable
         for uuid in oscar.find_entries_by_path(context, event_pathname):
             entry = groonga.get(context, "Entries", uuid, "size")
