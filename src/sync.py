@@ -7,6 +7,12 @@ Created on 2014/08/21
 import os,tempfile,getpass,logging
 import oscar,config,log
 
+logger = logging.getLogger(__name__)
+
+def parser_setup(parser):
+    parser.add_argument("base_dir", nargs="+")
+    parser.set_defaults(func=run)
+
 def mount_command(path, username, password, mountpoint):
     mount_options = "ro,iocharset=utf8,uid=%s" % getpass.getuser()
     if password and password != "":
@@ -23,8 +29,11 @@ def sync_log(base_dir, path, success, what=None, code=None):
 
 def sync(base_dir):
     syncorigin = config.get(base_dir, "syncorigin")
-    if u"path" not in syncorigin or syncorigin[u"path"] == "": return False
+    if u"path" not in syncorigin or syncorigin[u"path"] == "":
+        logger.debug("No path config in syncorigin")
+        return False
     path = syncorigin[u"path"]
+    if isinstance(path, unicode): path = path.encode("utf-8")
     username = syncorigin[u"username"] if u"username" in syncorigin else None
     password = syncorigin[u"password"] if u"password" in syncorigin else None
     if username == u"": username = None
@@ -35,24 +44,28 @@ def sync(base_dir):
     try:
         rst = os.system(mount_command(path, username, password, tempdir))
         if rst != 0:
-            logging.error("Unable to mount sync source %s (%d)" % (path, rst))
+            logger.error(u"Unable to mount sync source %s (%d)" % (path.decode("utf-8"), rst))
             sync_log(base_dir, path, False, "mount", rst)
             return False
         try:
             rsync_cmd = "rsync -ax %s/ %s" % (tempdir, base_dir)
-            logging.debug(rsync_cmd)
+            logger.debug(rsync_cmd)
             rst = os.system(rsync_cmd)
             if rst != 0:
-                logging.error("rsync (%s -> %s) returned error code: %d" % (path, base_dir, rst))
+                logger.error(u"rsync (%s -> %s) returned error code: %d" % (path.decode("utf-8"), base_dir.decode("utf-8"), rst))
                 sync_log(base_dir, path, False, "rsync", rst)
                 return False
         finally:
             umount_cmd = "sudo umount %s" % tempdir
             os.system(umount_cmd)
-            logging.debug(umount_cmd)
+            logger.debug(umount_cmd)
     finally:
-        logging.debug("Deleting tempdir %s" % tempdir)
+        logger.debug("Deleting tempdir %s" % tempdir)
         os.rmdir(tempdir)
 
     sync_log(base_dir, path, True)
     return True
+
+def run(args):
+    for base_dir in args.base_dir:
+        sync(base_dir)
