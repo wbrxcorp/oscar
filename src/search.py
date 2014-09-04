@@ -10,6 +10,7 @@ import oscar, groonga
 def parser_setup(parser):
     parser.add_argument("dir")
     parser.add_argument("query")
+    parser.set_defaults(func=run)
 
 def _search(context, path, query=None, offset=None, limit=None, dirty=None):
     directory_uuids = filter(lambda x:x not in (None, "ROOT", ""), oscar.find_entries_by_path(context, path))
@@ -51,13 +52,16 @@ def search(base_dir_or_context, path, query=None, offset=None, limit=None, dirty
             return _search(context, path, query, offset, limit, dirty)
 
 def search_by_real_path(_dir, query):
-    base_dir = oscar.discover_basedir(file)
+    base_dir = oscar.discover_basedir(_dir)
     return search(base_dir, _dir[len(base_dir): + 1], query)
+
+def run(args):
+    for result in search_by_real_path(args.dir, args.query):
+        print result
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser_setup(parser)
     args = parser.parse_args()
-    for result in search_by_real_path(args.dir, args.query):
-        print result
+    run(args)
 
