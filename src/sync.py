@@ -21,21 +21,24 @@ def mount_command(path, username, password, mountpoint):
         mount_options += ",guest"
     if username and username != "":
         mount_options += ",username=%s" % username
+    #logger.debug(path)
     return "sudo mount -t cifs -o %s %s %s" % (mount_options, path, mountpoint)
 
 def sync_log(base_dir, path, success, what=None, code=None):
     content = u"%s = %s" % (path.decode("utf-8"), " = Success" if success else "= Fail (%s:code=%d)" % (what, code))
     log.create_log(base_dir, "sync", content)
 
+def unicode2str(maybeunicode):
+    return maybeunicode.encode("utf-8") if isinstance(maybeunicode, unicode) else maybeunicode
+
 def sync(base_dir):
     syncorigin = config.get(base_dir, "syncorigin")
     if u"path" not in syncorigin or syncorigin[u"path"] == "":
         logger.debug("No path config in syncorigin")
         return False
-    path = syncorigin[u"path"]
-    if isinstance(path, unicode): path = path.encode("utf-8")
-    username = syncorigin[u"username"] if u"username" in syncorigin else None
-    password = syncorigin[u"password"] if u"password" in syncorigin else None
+    path = unicode2str(syncorigin[u"path"])
+    username = unicode2str(syncorigin[u"username"]) if u"username" in syncorigin else None
+    password = unicode2str(syncorigin[u"password"]) if u"password" in syncorigin else None
     if username == u"": username = None
     if password == u"": password = None
     
