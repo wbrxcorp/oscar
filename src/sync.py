@@ -22,7 +22,7 @@ def mount_command(path, username, password, mountpoint):
     if username and username != "":
         mount_options += ",username=%s" % username
     #logger.debug(path)
-    return "sudo mount -t cifs -o %s %s %s" % (mount_options, path, mountpoint)
+    return "sudo mount -t cifs -o %s '%s' '%s'" % (mount_options, path, mountpoint)
 
 def sync_log(base_dir, path, success, what=None, code=None):
     content = u"%s = %s" % (path.decode("utf-8"), " = Success" if success else "= Fail (%s:code=%d)" % (what, code))
@@ -51,7 +51,7 @@ def sync(base_dir):
             sync_log(base_dir, path, False, "mount", rst)
             return False
         try:
-            rsync_cmd = "rsync -ax %s/ %s" % (tempdir, base_dir)
+            rsync_cmd = "rsync -ax '%s/' '%s'" % (tempdir, base_dir)
             logger.debug(rsync_cmd)
             rst = os.system(rsync_cmd)
             if rst != 0:
@@ -59,7 +59,7 @@ def sync(base_dir):
                 sync_log(base_dir, path, False, "rsync", rst)
                 return False
         finally:
-            umount_cmd = "sudo umount %s" % tempdir
+            umount_cmd = "sudo umount '%s'" % tempdir
             os.system(umount_cmd)
             logger.debug(umount_cmd)
     finally:
