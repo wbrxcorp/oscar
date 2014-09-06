@@ -28,7 +28,7 @@ def app_config(config_name):
     return app.config[config_name]
 
 def is_private_network():
-    return private_address_regex.match(flask.request.remote_addr)
+    return private_address_regex.match(flask.request.remote_addr) is not None
 
 def is_eden(request):
     # eden == MSIE in private network
