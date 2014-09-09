@@ -5,11 +5,12 @@ Created on 2014/08/20
 @author: shimarin
 '''
 
-import os,json,getpass,shutil,pwd,tempfile,errno,logging,zipfile,io,time,tarfile,subprocess,stat
+import os,json,getpass,shutil,tempfile,errno,logging,zipfile,io,time,tarfile,subprocess,stat
 import flask
-import oscar,web,samba,init,config,log,sync,truncate
+import oscar,web,samba,init,config,log,sync,truncate,unix
 
 app = flask.Blueprint(__name__, "admin")
+logger = logging.getLogger(__name__)
 
 @app.before_request
 def before_request():
@@ -222,32 +223,34 @@ def user_get(user_name):
     if not user: return "User not found", 404
     return flask.jsonify({"name":user["username"],"admin":_is_admin_user(user)})
 
-def _is_username_reserved(user_name):
-    user_name = user_name.lower()
-    if getpass.getuser() == user_name: return True # running user is reserved
-    try:
-        system_user = pwd.getpwnam(user_name)
-        if system_user.pw_uid < 1000: return True # system user name which lower than 1000 are reserved
-    except KeyError:
-        pass # it's ok
-    return False
-
 @app.route("/user/<user_name>/create", methods=['POST'])
 def user_create(user_name):
-    if _is_username_reserved(user_name):
-        return flask.jsonify({"success":False, "info":"USERNAMERESERVED"}) 
-
+    try:
+        unix.useradd(user_name)
+    except unix.AlreadyExists:
+        logger.exception("user_create(not severe)") # ログに記録だけする
+    except unix.OperationFail, e:
+        logger.exception("user_create")
+        return flask.jsonify({"success":False, "info":e.__class__.__name__})
+    
     options = flask.request.json
     rst = samba.register_user(user_name, options["password"], "{\"admin\":true}" if "admin" in options and options["admin"] else None)
     return flask.jsonify({"success":rst, "info":None})
 
 @app.route("/user/<user_name>/update", methods=['POST'])
 def user_update(user_name):
-    if _is_username_reserved(user_name):
-        return flask.jsonify({"success":False, "info":"USERNAMERESERVED"}) 
-
     user = samba.get_user(user_name)
     if not user: return "User not found", 404
+
+    if not unix.user_exists(user_name): #どういうわけかunixユーザーがいない場合作る
+        try:
+            unix.useradd(user_name)
+        except unix.Reserved, e:
+            logger.exception("user_update.useradd")
+            return flask.jsonify({"success":False, "info":e.__class__.__name__})
+        except unix.OperationFail, e:
+            logger.exception("user_update.useradd") # ログに記録だけする
+
     options = flask.request.json
     password = options["password"] if "password" in options else None
     if password == "": password = None
@@ -258,8 +261,81 @@ def user_update(user_name):
 
 @app.route("/user/<user_name>", methods=['DELETE'])
 def user_delete(user_name):
-    if _is_username_reserved(user_name):
-        return flask.jsonify({"success":False, "info":"USERNAMERESERVED"}) 
-
     rst = samba.remove_user(user_name)
+
+    try:
+        unix.userdel(user_name)
+    except unix.UserDoesNotExist:
+        logger.exception("remove_user")
+        return "User not found", 404
+    except unix.OperationFail:
+        # ログに記録だけする
+        logger.exception("remove_user")
+
     return flask.jsonify({"success":rst, "info":None})
+
+###################
+# GROUP functions #
+###################
+
+@app.route("/group")
+def group():
+    return flask.Response(oscar.to_json(unix.groups()),  mimetype='application/json')
+
+@app.route("/group/<group_name>", methods=['GET'])
+def group_get(group_name):
+    return flask.Response(oscar.to_json(unix.members(group_name)),  mimetype='application/json')
+
+@app.route("/group/<group_name>/create", methods=['POST'])
+def group_create(group_name):
+    try:
+        unix.groupadd(group_name)
+    except unix.OperationFail, e:
+        logger.exception("group_create")
+        return flask.jsonify({"success":False, "info":e.__class__.__name__})
+    users = flask.request.json
+    for username in users:
+        try:
+            unix.memberadd(group_name, username)
+        except unix.OperationFail:
+            logger.exception("group_create.memberadd")
+
+    return flask.jsonify({"success":True, "info":None})
+
+@app.route("/group/<group_name>/update", methods=['POST'])
+def group_update(group_name):
+    users = flask.request.json
+    try:
+        existing_users = unix.members(group_name)
+    except unix.GroupDoesNotExist:
+        logger.exception("group_update")
+        return "Group not found", 404
+
+    for user_name in existing_users:
+        if user_name not in users:
+            try:
+                unix.memberdel(group_name, user_name)
+            except unix.OperationFail:
+                logger.exception("group_create.memberdel")
+        
+    for user_name in users:
+        if user_name not in existing_users:
+            try:
+                unix.memberadd(group_name, user_name)
+            except unix.OperationFail:
+                logger.exception("group_create.memberadd")
+
+    return flask.jsonify({"success":True, "info":None})
+
+@app.route("/group/<group_name>", methods=['DELETE'])
+def group_delete(group_name):
+    try:
+        unix.groupdel(group_name)
+    except unix.GroupDoesNotExist:
+        logger.exception("group_delete")
+        return "Group not found", 404
+    except unix.OperationFail, e:
+        logger.exception("group_delete")
+        return flask.jsonify({"success":False, "info":e.__class__.__name__})
+
+    return flask.jsonify({"success":True, "info":None})
