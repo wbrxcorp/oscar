@@ -6,10 +6,11 @@ Created on 2014/08/20
 import os,sys,argparse,logging
 sys.path.append(os.path.dirname(os.path.abspath(__file__)) + '/..')
 
-import tdb
-import web,oscar,samba
+import web,oscar
 
 etc_dir = os.path.join(oscar.get_oscar_dir(), "etc")
+
+'''
 smb_conf = os.path.join(etc_dir, "smb.conf")
 smbusers = os.path.join(etc_dir, "smbusers")
 passdb = os.path.join(etc_dir, "passdb.tdb")
@@ -31,13 +32,17 @@ if not os.path.exists(passdb):
 
 if not os.path.exists(share_folder_base):
     os.mkdir(share_folder_base)
+'''
+
+share_folder_base = "/var/lib/oscar"
 
 logging.basicConfig(level=logging.DEBUG)
 
-samba.set_share_registry(smb_conf)
-samba.set_user_registry(passdb, smbusers)
+#samba.set_share_registry(smb_conf)
+#samba.set_user_registry(passdb, smbusers)
 
 web.app.config["SHARE_FOLDER_BASE"] = share_folder_base
+web.app.config["PRODUCTION"] = False
 
 parser = argparse.ArgumentParser()
 web.parser_setup(parser)
