@@ -1,5 +1,7 @@
-import os,collections,shutil,re,tempfile
+import os,collections,shutil,re,tempfile,logging,pwd,grp
 import configobj,pypassdb.passdb
+
+logger = logging.getLogger(__name__)
 
 _share_registry = "/etc/samba/smb.conf"
 _userdb = "/var/lib/samba/private/passdb.tdb"
@@ -9,6 +11,9 @@ _reserved_sections = ("homes","global","printers")
 
 def reload_samba():
     os.system("sudo -b -n smbcontrol smbd reload-config")
+
+def ensure_str(maybeunicode):
+    return maybeunicode.encode("utf-8") if isinstance(maybeunicode, unicode) else maybeunicode
 
 ###################
 # SHARE functions #
@@ -53,12 +58,19 @@ def share_exists(share_name):
     return share_name in get_shares()
 
 def share_real_path(share, path = None):
-    if path == None: return share[u"path"].encode("utf-8")
-    if isinstance(path, unicode): path = path.encode("utf-8")
+    share_path = ensure_str(share[u"path"])
+    if path == None: return share_path
+    path = ensure_str(path)
     if path.startswith('/'): path = re.sub(r'^/+', "", path)
-    return os.path.join(share[u"path"].encode("utf-8"), path)
+    return os.path.join(share_path, path)
 
-def register_share(share_name,share_dir, force_user=None, comment=None, guest_ok=None, writable=None, veto_files=None):
+def _valid_users_str(valid_users, valid_groups):
+    if not valid_users and not valid_groups: return None
+    valid_users_str = " ".join(valid_users) if valid_users else ""
+    valid_groups_str = " ".join(map(lambda x:"@" + x, valid_groups)) if valid_groups else ""
+    return " ".join([valid_users_str, valid_groups_str])
+
+def register_share(share_name,share_dir, force_user=None, comment=None, guest_ok=None, writable=None, veto_files=None, valid_users=None, valid_groups=None):
     if isinstance(share_name, str): share_name = share_name.decode("utf-8")
     if share_name in _reserved_sections: return False
     smbconf = _load_smbconf()
@@ -68,13 +80,15 @@ def register_share(share_name,share_dir, force_user=None, comment=None, guest_ok
     if veto_files: section[u"veto files"] = veto_files
     if writable: section[u"writable"] = "yes" if writable else "no"
     if guest_ok: section[u"guest ok"] = "yes" if guest_ok else "no"
+    valid_users_str = _valid_users_str(valid_users, valid_groups)
+    if valid_users_str: section[u"valid users"] = valid_users_str
     if share_name in smbconf: return False
     #else
     smbconf[share_name] = section
     _save_smbconf(smbconf)
     return True
 
-def update_share(share_name, share_dir, force_user=None, comment=None, guest_ok=None, writable=None, veto_files=None):
+def update_share(share_name, share_dir, force_user=None, comment=None, guest_ok=None, writable=None, veto_files=None, valid_users=None, valid_groups=None):
     if isinstance(share_name, str): share_name = share_name.decode("utf-8")
     if share_name in _reserved_sections: return False
     smbconf = _load_smbconf()
@@ -95,6 +109,8 @@ def update_share(share_name, share_dir, force_user=None, comment=None, guest_ok=
     update_or_delete(section, u"veto files", veto_files)
     update_or_delete(section, u"writable", writable)
     update_or_delete(section, u"guest ok", guest_ok)
+    valid_users_str = _valid_users_str(valid_users, valid_groups)
+    update_or_delete(section, u"valid users", valid_users_str)
     _save_smbconf(smbconf)
     return True
 
@@ -131,13 +147,14 @@ def get_users():
     return users
 
 def get_user(user_name):
-    user_name = user_name.lower().encode("utf-8") if isinstance(user_name, unicode) else user_name.lower()  
+    user_name = ensure_str(user_name).lower()  
     users = get_users()
     if user_name not in users: return None
     return users[user_name]
 
 def register_user(user_name, password, acct_desc = None):
-    user_name = user_name.lower().encode("utf-8") if isinstance(user_name, unicode) else user_name.lower()
+    user_name = ensure_str(user_name).lower()
+
     with _open_passdb() as passdb:
         if user_name in passdb: return False
         user_record = pypassdb.user.User(user_name)
@@ -149,7 +166,7 @@ def register_user(user_name, password, acct_desc = None):
     return True
 
 def update_user(user_name, password = None, acct_desc = None):
-    user_name = user_name.lower().encode("utf-8") if isinstance(user_name, unicode) else user_name.lower()  
+    user_name = ensure_str(user_name).lower()  
     with _open_passdb() as passdb:
         if not user_name in passdb: return False
         user_record = passdb[user_name]
@@ -161,16 +178,17 @@ def update_user(user_name, password = None, acct_desc = None):
     return True
 
 def remove_user(user_name):
-    user_name = user_name.lower().encode("utf-8") if isinstance(user_name, unicode) else user_name.lower()  
+    user_name = ensure_str(user_name).lower()  
     with _open_passdb() as passdb:
         if user_name not in passdb: return False
         del passdb[user_name]
         _update_smbusers(passdb)
+
     reload_samba()
     return True
 
 def check_user_password(user_name, password):
-    user_name = user_name.lower().encode("utf-8") if isinstance(user_name, unicode) else user_name.lower()  
+    user_name = ensure_str(user_name).lower()  
     with _open_passdb() as passdb:
         if user_name not in passdb: return False
         return passdb[user_name].check_password(password)
@@ -180,5 +198,25 @@ def check_user_password(user_name, password):
 ##########################
 
 def access_permitted(share_name, user_name):
-    return True #TBD
+    share = get_share(share_name)
+    user_name = ensure_str(user_name).lower()
+    if "valid users" not in share:
+        return True
+    valid_users = map(lambda x:x.lower(), re.split(r' *,? *', ensure_str(share["valid users"])))
+    if user_name in valid_users:
+        return True
 
+    try:
+        unix_user = pwd.getpwnam(user_name)
+    except KeyError:
+        return False #no corresponding unix user
+
+    uid = unix_user.pw_uid
+    gid = unix_user.pw_gid
+    groups = map(lambda x:x.gr_name, filter(lambda x: x.gr_gid == gid or uid in x.gr_mem, grp.getgrall()))
+
+    for group in groups:
+        for group_prefix in ('@','+','@+','+@'):
+            if group_prefix + group in valid_users: return True
+
+    return False
