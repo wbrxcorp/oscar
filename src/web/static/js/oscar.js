@@ -1,4 +1,4 @@
-angular.module("Oscar", ["ngResource","ngSanitize","ui.bootstrap","angularFileUpload"])
+angular.module("Oscar", ["ngResource","ngSanitize","ui.bootstrap","ui.select2", "angularFileUpload"])
 .controller("IndexController", ["$scope", "$resource", function($scope, $resource) {
     var info = $resource("./_info");
     $scope.info = info.get({}, function(result) {
@@ -171,8 +171,13 @@ angular.module("Oscar", ["ngResource","ngSanitize","ui.bootstrap","angularFileUp
         });
     }
     
+    $scope.users = [{id:"shimarin",text:"shimarin"},{id:"sorimashi",text:"sorimashi"},{id:"hoge",text:"hoge"}];  // TODO: load
+    $scope.groups = [{id:"executive",text:"executive"},{id:"staff",text:"staff"},{id:"guest",text:"guest"}]; // TODO: load
+    
     $scope.new_share_selected = function() {
         $scope.share = {new:true,options:{synctime:new Date(1970,1,1,00,00,00)}};
+        $scope.valid_users = [];
+        $scope.valid_groups = [];
     }
     $scope.share_selected = function(share_name) {
         $scope.share = share.get({name:share_name}, function(result) {
@@ -182,6 +187,8 @@ angular.module("Oscar", ["ngResource","ngSanitize","ui.bootstrap","angularFileUp
             } else {
                 $scope.share.options.synctime = new Date(1970,1,1,00,00,00);
             }
+            $scope.valid_users = []; // TODO: read from result
+            $scope.valid_groups = []; // TODO: read from result
             $scope.shareForm.$setPristine();
             $scope.share.log = share.get({name:share_name,action:"log"})
         });

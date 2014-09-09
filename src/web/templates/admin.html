@@ -44,6 +44,29 @@
                   </div>
                 </div>
                 <div class="form-group">
+                  <label class="col-sm-2 control-label">ゲストアクセス</label>
+                  <div class="col-sm-10">
+                    <div class="checkbox"><label><input type="checkbox" ng-model="guest_ok"> 許可する</label></div>
+                    <p class="help-block">チェックすると、この共有フォルダには認証なしでアクセスできます</p>
+                  </div>
+                </div>
+                <div class="form-group">
+                  <label class="col-sm-2 control-label">アクセス許可</label>
+                  <div class="col-sm-10">
+                    <div class="row">
+                      <div class="col-sm-6">
+                        <label>ユーザー</label>
+                        <input type="text" class="form-control" ng-disabled="guest_ok" ui-select2="{multiple: true,simple_tags:true,data:users}" ng-model="valid_users">
+                      </div>
+                      <div class="col-sm-6">
+                        <label>グループ</label>
+                        <input type="text" class="form-control" ng-disabled="guest_ok" ui-select2="{multiple:true,simple_tags:true,data:groups}" ng-model="valid_groups">
+                      </div>
+                    </div>
+                    <p class="help-block">この共有フォルダにアクセス可能なユーザーとグループを指定してください。共に空欄の場合は認証されたユーザー全てがこの共有フォルダにアクセスできます</p>
+                  </div>
+                </div>
+                <div class="form-group">
                   <label class="col-sm-2 control-label">自動同期元</label>
                   <div class="col-sm-10">
                     <div class="input-group">
