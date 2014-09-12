@@ -13,6 +13,7 @@ fulltext_max_file_size=1024*1024*100 # 100MB
 
 def parser_setup(parser):
     parser.add_argument("base_dir", nargs="+")
+    parser.set_defaults(func=run)
 
 def fulltext_already_exists(base_dir, hashval):
     with oscar.context(base_dir) as context:
@@ -89,9 +90,12 @@ def update(base_dir, context = None, concurrency = 1, limit = 1000):
         with oscar.context(base_dir, oscar.min_free_blocks) as context:
             _update(base_dir, context, concurrency, limit)
 
+def run(args):
+    for base_dir in args.base_dir:
+        update(base_dir, concurrency = multiprocessing.cpu_count() + 1)
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser_setup(parser)
     args = parser.parse_args()
-    for base_dir in args.base_dir:
-        update(base_dir, concurrency = multiprocessing.cpu_count() + 1)
+    run(args)
