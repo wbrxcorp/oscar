@@ -24,6 +24,9 @@ oscar.tgz: lib.tar bin/oscar bin/oscar.wsgi etc/commit-id.txt
 	tar xvf lib.tar -C lib
 	tar zcvf $@ --xattrs --exclude='src' --exclude='*~' etc/commit-id.txt bin lib
 
+oscar.zip: oscar.tgz
+	zip $@ $< update-script
+
 install: all
 	mkdir -p /opt/oscar/etc
 	tar zxvf oscar.tgz --xattrs -C /opt/oscar

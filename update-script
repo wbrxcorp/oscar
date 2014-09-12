@@ -1,0 +1,5 @@
+#!/bin/sh
+sudo /etc/init.d/oscar-watch restart || exit 1
+sudo /etc/init.d/oscar-sched restart || exit 1
+echo "Update done"
+
