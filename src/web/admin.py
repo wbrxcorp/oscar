@@ -44,11 +44,25 @@ def license():
     oscar.save_license(license_string, license_signature)
     
     return flask.jsonify({"success":True,"info":None})
-    
+
 @app.route("/log.zip")
 def log_zip():
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w") as zip:
+        for file in ["/etc/samba/smb.conf", "/etc/passwd", "/etc/group", 
+                     os.path.join(oscar.get_oscar_dir(), "etc/commit-id.txt"), 
+                     os.path.join(oscar.get_oscar_dir(), "etc/license.txt")]:
+            try:
+                if os.path.isfile(file):
+                    zip.write(file, os.path.basename(file))
+            except:
+                logger.exception("log_zip.sysfiles")
+        try:
+            info = subprocess.check_output("uname -a ; free ; ifconfig ; df -h; ls -l '%s'" % (web.app.config["SHARE_FOLDER_BASE"]), shell=True, close_fds=True)
+            zip.writestr("info.txt", info)
+        except:
+            logger.exception("log_zip.info")
+
         for root, dirs, files in os.walk("/var/log/oscar"):
             for file in files:
                 zip.write(os.path.join(root, file), file)
