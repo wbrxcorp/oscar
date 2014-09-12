@@ -14,6 +14,9 @@ def parser_setup(parser):
     parser.add_argument("-s", "--share-registry", default="/etc/samba/smb.conf")
     parser.set_defaults(func=run)
 
+def ensure_str(maybeunicode):
+    return maybeunicode.encode("utf-8") if isinstance(maybeunicode, unicode) else maybeunicode
+
 def create_sync_cron_trigger(base_dir):
     try:
         syncday = config.get(base_dir, "syncday")
@@ -23,10 +26,10 @@ def create_sync_cron_trigger(base_dir):
         if not synctime or not re.match(r'^\d\d:\d\d$', synctime): return None
         dow = ','.join(map(lambda (x,y):x, filter(lambda (x,y):y, syncday.items())))
         hour, minute = map(lambda x:int(x), synctime.split(':'))
-        logger.info("Syncing %s is being scheduled at %s %s", (base_dir, dow, synctime))
+        logger.info("Syncing %s is being scheduled at %s %s" % (ensure_str(base_dir), ensure_str(dow), ensure_str(synctime)))
         return apscheduler.triggers.cron.CronTrigger(day_of_week=dow, hour=hour, minute=minute)
     except:
-        logging.exception("create_sync_cron_trigger")
+        logger.exception("create_sync_cron_trigger")
     return None
 
 def create_walk_cron_trigger(base_dir):
@@ -36,7 +39,7 @@ def create_walk_cron_trigger(base_dir):
     return apscheduler.triggers.cron.CronTrigger(day_of_week=dow, hour=0, minute=15)
 
 def perform_walk(base_dir):
-    logging.debug("Performing walk on %s" % base_dir)
+    logger.debug("Performing walk on %s" % base_dir)
     with oscar.context(base_dir, oscar.min_free_blocks) as context:
         walk.walk(base_dir, context)
         gc_ft.gc(context) # フルテキストインデックスのgcもする
@@ -53,7 +56,7 @@ def setup_jobs(sched):
     for share_name, share in samba.get_shares().iteritems():
         base_dir = samba.share_real_path(share)
         if not os.path.isdir(base_dir):
-            logging.error("Directory %s for share %s is missing" % (base_dir, share_name))
+            logger.error("Directory %s for share %s is missing" % (base_dir, share_name))
             continue
         sync_trigger = create_sync_cron_trigger(base_dir)
         if sync_trigger: sched.add_job(sync.sync, sync_trigger, args=[base_dir])
@@ -82,19 +85,22 @@ def wait(sched):
         except KeyboardInterrupt:
             raise
         except:
-            logging.exception("wait")
+            logger.exception("wait")
             continue
 
 def run(args):
-    logging.debug("share_registry=%s" % args.share_registry)
+    logger.debug("share_registry=%s" % args.share_registry)
     samba.set_share_registry(args.share_registry)
     oscar.treat_sigterm_as_keyboard_interrupt()
     sched = apscheduler.schedulers.background.BackgroundScheduler(coalesce=True)
+    logger.info("Setup jobs...")
     setup_jobs(sched)
     try:
         sched.start()
+        logger.info("Scheduler started.")
         wait(sched)
     finally:
+        logger.info("Shutting down scheduler...")
         sched.shutdown()
 
 if __name__ == "__main__":
