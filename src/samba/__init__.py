@@ -69,11 +69,13 @@ def share_valid_users_groups(share):
     if "valid users" not in share: return ([],[])
     valid_users = []
     valid_groups = []
-    for item in share["valid users"]:
+    vu = share["valid users"]
+    if isinstance(vu, basestring): vu = [vu]
+    for item in vu:
         if re.search(r'^[@\+]+', item) is not None:
-            valid_groups.append(re.sub(r'^[@\+]+', "", item))
+            valid_groups.append(ensure_str(re.sub(r'^[@\+]+', "", item)))
         elif item != "":
-            valid_users.append(item)
+            valid_users.append(ensure_str(item))
     #logger.debug(valid_users)
     return (valid_users,valid_groups)
 
@@ -83,7 +85,8 @@ def share_guest_ok(share):
 def _valid_users(valid_users, valid_groups):
     #logger.debug(valid_users)
     if not valid_users and not valid_groups: return None # [], []の場合もNoneを返す
-    return (valid_users or []) + map(lambda x:"@" + x, valid_groups or [])
+    rst = (valid_users or []) + map(lambda x:"@" + x, valid_groups or [])
+    return rst if len(rst) > 1 else rst[0]
 
 def register_share(share_name,share_dir, force_user=None, comment=None, guest_ok=None, writable=None, veto_files=None, valid_users=None, valid_groups=None):
     if isinstance(share_name, str): share_name = share_name.decode("utf-8")
@@ -224,9 +227,8 @@ def share_user_access_permitted(share, user_name):
     except KeyError:
         return False #no corresponding unix user
 
-    uid = unix_user.pw_uid
     gid = unix_user.pw_gid
-    groups = map(lambda x:x.gr_name, filter(lambda x: x.gr_gid == gid or uid in x.gr_mem, grp.getgrall()))
+    groups = map(lambda x:x.gr_name, filter(lambda x: x.gr_gid == gid or user_name in x.gr_mem, grp.getgrall()))
 
     for group in groups:
         for group_prefix in ('@','+','@+','+@'):
