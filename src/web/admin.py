@@ -62,6 +62,11 @@ def log_zip():
             zip.writestr("info.txt", info)
         except:
             logger.exception("log_zip.info")
+        
+        ua = flask.request.headers.get('User-Agent')
+        if ua:
+            if isinstance(ua, unicode): ua = ua.encode("utf-8")
+            zip.writestr("user-agent.txt", ua)
 
         for root, dirs, files in os.walk("/var/log/oscar"):
             for file in files:
