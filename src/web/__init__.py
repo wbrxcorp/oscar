@@ -44,8 +44,12 @@ def is_eden(request):
     return "MSIE " in request.headers.get('User-Agent') and is_private_network()
 
 def check_access_credential(share):
-    if samba.share_guest_ok(share): return is_private_network()
-    return flask.g.username and samba.access_permitted(share, flask.g.username)
+    # 試用版では常にアクセス許可
+    if flask.g.license is None: return True
+    # guest okな共有フォルダならアクセス許可
+    if samba.share_guest_ok(share): return True
+    # それ以外の場合はアクセス権をチェック
+    return flask.g.username and samba.share_user_access_permitted(share, flask.g.username)
 
 def require_access_credential(share):
     if not check_access_credential(share): raise AuthRequired()
@@ -58,9 +62,8 @@ def before_request():
     flask.g.purchase_link = get_purchase_link()
     auth = flask.request.authorization
     flask.g.username = auth.username if auth and samba.check_user_password(auth.username, auth.password) else None
-    # プライベートネットワークからのアクセスでない場合は何のリクエストにしても認証を要求する
-    if not flask.g.username and not is_private_network():
-        # TODO: ユーザーが未登録の場合は外から誰もアクセスできないことになるが良いか？
+    # プライベートネットワークからのアクセスでない場合でユーザーが一人でもいる場合は何のリクエストにしても認証を要求する
+    if not flask.g.username and len(samba.get_users()) > 0 and not is_private_network() and flask.g.license is not None:
         raise AuthRequired()
 
 @app.after_request
@@ -132,7 +135,7 @@ def info():
         "total" : ( sysinfo.capacity_string(capacity_info["total"]), 100 )
     }
     capacity["free"] = ( sysinfo.capacity_string(capacity_info["free"]), 100 - capacity["used"][1] )
-    return flask.jsonify({"loadavg":os.getloadavg(),"capacity":capacity,"shares":accessible_shares,"eden":is_eden(flask.request)})
+    return flask.jsonify({"loadavg":os.getloadavg(),"capacity":capacity,"shares":accessible_shares,"eden":is_eden(flask.request),"license":flask.g.license})
 
 @app.route("/login")
 def login():
@@ -166,7 +169,7 @@ def share_info(share_name):
     with oscar.context(share["path"]) as context:
         file_count, rst = search.search(context, path, limit=0, dirty=False)
         dirty_count, rst = search.search(context, path, limit=0, dirty=True)
-    return flask.jsonify({"share_name":share_name,"count":file_count,"queued":dirty_count,"eden":is_eden(flask.request),"license":oscar.get_license_string(),"ad_source":get_ad_source()})
+    return flask.jsonify({"share_name":share_name,"count":file_count,"queued":dirty_count,"eden":is_eden(flask.request),"license":flask.g.license,"ad_source":get_ad_source()})
 
 @app.route("/<share_name>/_ad")
 def ad(share_name):

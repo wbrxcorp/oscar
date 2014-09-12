@@ -12,6 +12,7 @@
         <div class="media-body">
           <h4 class="media-heading"><a href="{{share.name}}"><span ng-show="!share.guest_ok" class="glyphicon glyphicon-lock"></span> {{share.name}}</a></h4>
           <p>{{share.comment}} <span ng-show="share.info">(検索可能ファイル数{{share.info.count}}件<span ng-show="share.info.queued">、インデックス待ち{{share.info.queued}}件</span>) </span><span ng-show="info.eden"><a class="btn btn-success btn-xs" href="{{eden_link(share.name)}}">エクスプローラで開く</a> <a ng-click="iehelp()" href=""><span class="glyphicon glyphicon-question-sign"></span></a></span></p>
+          <p class="text-danger" ng-show="!info.license && !share.guest_ok">※試用版ではアクセス制限が行われません</p>
         </div>
       </li>
     </ul>

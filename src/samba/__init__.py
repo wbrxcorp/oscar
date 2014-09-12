@@ -50,7 +50,7 @@ def get_shares():
 
 def get_share(share_name):
     shares = get_shares()
-    return shares[share_name] if share_name in shares else None
+    return shares.get(share_name)
 
 def share_registry_last_update():
     return os.stat(_share_registry).st_mtime
@@ -210,12 +210,12 @@ def check_user_password(user_name, password):
 # SHARE x USER functions #
 ##########################
 
-def access_permitted(share_name, user_name):
-    share = get_share(share_name)
+def share_user_access_permitted(share, user_name):
+    #logger.debug(share_name)
     user_name = ensure_str(user_name).lower()
-    if "valid users" not in share:
-        return True
-    valid_users = map(lambda x:x.lower(), re.split(r' *,? *', ensure_str(share["valid users"])))
+    valid_users = share.get("valid users")
+    if valid_users is None: return True
+    
     if user_name in valid_users:
         return True
 
