@@ -29,6 +29,13 @@ def app_config(config_name):
     if config_name not in app.config: return None
     return app.config[config_name]
 
+def get_purchase_link():
+    return "http://www.walbrix.com/jp/oscar/purchase.html"
+
+def get_ad_source():
+    num = int(time.time()) % 10
+    return "http://ad.walbrix.com/oscar/ad%d.html" % num
+
 def is_private_network():
     return private_address_regex.match(flask.request.remote_addr) is not None
 
@@ -48,6 +55,7 @@ def before_request():
     flask.g.license = oscar.get_license_string()
     flask.g.version = oscar.version
     flask.g.commit_id = oscar.get_commit_id()
+    flask.g.purchase_link = get_purchase_link()
     auth = flask.request.authorization
     flask.g.username = auth.username if auth and samba.check_user_password(auth.username, auth.password) else None
     # プライベートネットワークからのアクセスでない場合は何のリクエストにしても認証を要求する
@@ -158,7 +166,12 @@ def share_info(share_name):
     with oscar.context(share["path"]) as context:
         file_count, rst = search.search(context, path, limit=0, dirty=False)
         dirty_count, rst = search.search(context, path, limit=0, dirty=True)
-    return flask.jsonify({"share_name":share_name,"count":file_count,"queued":dirty_count,"eden":is_eden(flask.request)})
+    return flask.jsonify({"share_name":share_name,"count":file_count,"queued":dirty_count,"eden":is_eden(flask.request),"license":oscar.get_license_string(),"ad_source":get_ad_source()})
+
+@app.route("/<share_name>/_ad")
+def ad(share_name):
+    time.sleep(3)
+    return "<strong>HOGE</strong>",404
 
 @app.route("/<share_name>/_dir")
 def share_dir(share_name):
@@ -209,4 +222,4 @@ def share_get_file(share_name, path,filename):
 
 def run(args):
     app.config["SHARE_FOLDER_BASE"] = args.share_folder_base
-    app.run(host='0.0.0.0',debug=True)
+    app.run(host='0.0.0.0',debug=True,threaded=True)

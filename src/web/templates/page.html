@@ -79,7 +79,7 @@
     <div class="modal-body">
       <h3>全文検索NAS</h3>
       <p>バージョン: {%endraw%}{{g.version}} {%if g.commit_id%}(コミットID:{{g.commit_id[:8]}}){%endif%}{%raw%}</p>
-      <p>ライセンス: <strong>{%endraw%}{%if g.license%}{{g.license}}{%else%}試用版{%endif%}{%raw%}</strong></p>
+      <p>ライセンス: <strong>{%endraw%}{%if g.license%}{{g.license}}{%else%}試用版 <a href="{{g.purchase_link}}"><span class="glyphicon glyphicon-shopping-cart"></span>ライセンスを購入</a>{%endif%}{%raw%}</strong></p>
       <p>開発元: {%endraw%}<img src="{{ url_for('static', filename='img/walbrix_logo.png')}}" height="20"/>{%raw%} ワルブリックス株式会社</p>
     </div>
     <div class="modal-footer">

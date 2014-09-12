@@ -20,7 +20,7 @@ angular.module("Oscar", ["ngResource","ngSanitize","ui.bootstrap","ui.select2", 
         return classes;
     }
 }])
-.controller("ShareController", ["$scope", "$resource","$location","$timeout", function($scope, $resource,$location,$timeout) {
+.controller("ShareController", ["$scope", "$resource","$location","$timeout","$http","$sce", function($scope, $resource,$location,$timeout,$http,$sce) {
     var info = $resource("./_info");
     var dir = $resource("./_dir");
     var search = $resource("./_search");
@@ -53,6 +53,7 @@ angular.module("Oscar", ["ngResource","ngSanitize","ui.bootstrap","ui.select2", 
     $scope.limit = 20;
     $scope.search = null;
     $scope.result = null;
+    $scope.ad = null;
 
     $scope.timer = null;
     
@@ -60,7 +61,14 @@ angular.module("Oscar", ["ngResource","ngSanitize","ui.bootstrap","ui.select2", 
 
     $scope.load = function(path) {
         $scope.path_elements = $scope.split_path(path);
-        $scope.info = info.get({path:$scope.path}, function() {}, function() { $scope.info = {error:true} });
+        $scope.info = info.get({path:$scope.path}, function(result) {
+            if (!result.license) {
+                $http({method: 'GET', url: result.ad_source}).
+                    success(function(data) {
+                        $scope.ad = $sce.trustAsHtml(data);
+                    });
+            }
+        }, function() { $scope.info = {error:true} });
         dir.get({path:$scope.path}, function(result) {
             $scope.dir = result;
             $scope.dir.page = 1;

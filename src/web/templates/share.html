@@ -68,9 +68,10 @@
         <span ng-repeat="snippet in row.snippets.content">..<span ng-bind-html="snippet"></span>..</span>
       </div>
       {%endraw%}{%if not license%}{%raw%}
-      <div ng-show="$index == 0" class="text-center" style="margin-top:1em;"><iframe src="http://blogparts.dmm.com/ranking?adid=eed7061f886cd1ee4aca80e33d41f4aa" height="150" width="400" scrolling="no" frameborder="0">
-        この部分は iframe 対応のブラウザで見てください。
-      </iframe></div>
+      <div ng-show="$index == 0" class="text-center" style="margin-top:1em;">
+        <div ng-bind-html="ad"></div>
+        <div ng-show="!ad">{%endraw%}<a href="{{g.purchase_link}}"><img src="/static/img/trial.png" class="img-responsive img-rounded" style="margin:0 auto;"></a>{%raw%}</div>
+      </div>
       {%endraw%}{%endif%}{%raw%}
     </div>
     <p class="text-center" ng-show="result.count > result.rows.length"><pagination ng-model="result.page" ng-change="pageChanged()" items-per-page="limit" max-size="10" boundary-links="true" total-items="result.count" previous-text="&lsaquo;" next-text="&rsaquo;" first-text="&laquo;" last-text="&raquo;"></pagination></p>
