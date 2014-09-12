@@ -14,7 +14,8 @@ logger = logging.getLogger(__name__)
 
 @app.before_request
 def before_request():
-    if not _admin_user_exists(): return
+    #logger.debug(flask.g.license)
+    if not _admin_user_exists() or flask.g.license is None: return
     if not flask.g.username or not _is_admin_user(samba.get_user(flask.g.username)):
         return flask.Response('You have to login with proper credentials', 401, {'WWW-Authenticate': 'Basic realm="Login Required"'})
 
