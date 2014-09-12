@@ -108,7 +108,7 @@ def useradd(username):
     username = ensure_str(username).lower()
     check_username_availability(username)
     try:
-        sudo.execute(["useradd", "-d", "/dev/null", "-g", "oscar", "-M", "-N", "-s", "/sbin/nologin", username])
+        sudo.execute(["useradd", "-d", "/dev/null", "-g", str(running_users_primary_gid), "-M", "-N", "-s", "/sbin/nologin", username])
     except sudo.CommandFail, e:
         if e.returncode == 3: raise InvalidName(username)
         elif e.returncode == 9: raise AlreadyExists(username)
@@ -166,8 +166,8 @@ def memberadd(groupname, username):
         sudo.execute(["groupmems", "-g", groupname, "--add", username])
     except sudo.CommandFail, e:
         if e.returncode == 7: raise AlreadyMember("group:%s, user:%s" % (groupname, username))
-        elif e.returncode == 8: raise GroupDoesNotExist(groupname)
-        elif e.returncode == 9: raise UserDoesNotExist(username)
+        elif e.returncode == 8: raise UserDoesNotExist(username)
+        elif e.returncode == 9: raise GroupDoesNotExist(groupname)
         else: raise
 
 '''
@@ -196,16 +196,13 @@ Possible exceptions: GroupDoesNotExist
 '''
 def members(groupname):
     groupname = ensure_str(groupname).lower()
-    group = get_group(groupname)
-    return map(lambda x:x.pw_name, filter(lambda x:is_valid_user(x.pw_uid, x.pw_gid) and x.pw_uid in group.gr_mem, pwd.getpwall()))
+    return get_group(groupname).gr_mem
 
 '''
 ユーザーがグループのメンバーかどうかを返す
 '''
 def ismember(groupname, username):
-    user = get_user(username)
-    group = get_group(groupname)
-    return user.pw_uid in group.gr_mem
+    return username in get_group(groupname).gr_mem
 
 if __name__ == "__main__":
     logging.basicConfig()

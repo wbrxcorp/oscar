@@ -8,6 +8,8 @@ import os,argparse,logging,re,time,hashlib,errno
 import apscheduler.schedulers.background,apscheduler.triggers.cron,apscheduler.triggers.date
 import samba,oscar,config,walk,sync,gc_ft
 
+logger = logging.getLogger(__name__)
+
 def parser_setup(parser):
     parser.add_argument("-s", "--share-registry", default="/etc/samba/smb.conf")
     parser.set_defaults(func=run)
@@ -21,6 +23,7 @@ def create_sync_cron_trigger(base_dir):
         if not synctime or not re.match(r'^\d\d:\d\d$', synctime): return None
         dow = ','.join(map(lambda (x,y):x, filter(lambda (x,y):y, syncday.items())))
         hour, minute = map(lambda x:int(x), synctime.split(':'))
+        logger.info("Syncing %s is being scheduled at %s %s", (base_dir, dow, synctime))
         return apscheduler.triggers.cron.CronTrigger(day_of_week=dow, hour=hour, minute=minute)
     except:
         logging.exception("create_sync_cron_trigger")

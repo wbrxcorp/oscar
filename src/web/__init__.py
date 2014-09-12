@@ -1,5 +1,5 @@
 # -*- coding:utf-8 mode:python -*-
-import os,re,argparse,time
+import os,re,argparse,time,logging
 import flask
 import oscar,groonga,samba,search
 import admin,sysinfo
@@ -7,6 +7,8 @@ import admin,sysinfo
 app = flask.Flask("web")
 app.register_blueprint(admin.app, url_prefix="/_admin")
 app.config.update(JSON_AS_ASCII=False)
+
+logger = logging.getLogger(__name__)
 
 private_address_regex = re.compile(r"(^127\.0\.0\.1)|(^10\.)|(^172\.1[6-9]\.)|(^172\.2[0-9]\.)|(^172\.3[0-1]\.)|(^192\.168\.)|(^fe80:)|(^FE80:)")
 
@@ -35,7 +37,7 @@ def is_eden(request):
     return "MSIE " in request.headers.get('User-Agent') and is_private_network()
 
 def check_access_credential(share):
-    if share.as_bool("guest ok"): return is_private_network()
+    if samba.share_guest_ok(share): return is_private_network()
     return flask.g.username and samba.access_permitted(share, flask.g.username)
 
 def require_access_credential(share):
@@ -43,12 +45,24 @@ def require_access_credential(share):
 
 @app.before_request
 def before_request():
+    flask.g.license = oscar.get_license_string()
+    flask.g.version = oscar.version
+    flask.g.commit_id = oscar.get_commit_id()
     auth = flask.request.authorization
     flask.g.username = auth.username if auth and samba.check_user_password(auth.username, auth.password) else None
     # プライベートネットワークからのアクセスでない場合は何のリクエストにしても認証を要求する
     if not flask.g.username and not is_private_network():
         # TODO: ユーザーが未登録の場合は外から誰もアクセスできないことになるが良いか？
         raise AuthRequired()
+
+@app.after_request
+def after_request(response):
+    if response.mimetype == "application/json":
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["Expires"] = "Mon, 26 Jul 1997 05:00:00 GMT"
+        response.headers["Cache-Control"] = "no-cache, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+    return response
 
 @app.errorhandler(AuthRequired)
 def auth_required(error):

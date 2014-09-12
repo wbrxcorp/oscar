@@ -4,7 +4,7 @@ import os,re,uuid,fcntl,errno,logging,json,base64,signal,threading,stat
 import rsa,xattr
 import groonga
 
-version = "1.0.0"
+version = "0.9.0"
 
 xattr_name = "user.oscar.uuid"
 _pk = "MEgCQQChvFeiMviXgB4RU9LIGJQ4DfxwPobNZHj6LqJYAAeOuwAmj4hpTLNolMNeyxy16p79MF2Om4KRuN8bnK8kVkuvAgMBAAE="
@@ -15,13 +15,17 @@ min_free_blocks = 2500
 class DiskFullException(Exception):
     pass
 
-
-
 def remove_preceding_slashes(filename):
     return re.sub(r'^\/+', "", filename)
 
 def get_oscar_dir():
     return os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+
+def get_commit_id():
+    try:
+        return open(os.path.join(get_oscar_dir(), "etc/commit-id.txt")).read().strip()
+    except:
+        return None
 
 def get_database_dir(base_dir):
     if isinstance(base_dir, unicode): base_dir = base_dir.encode("utf-8")
@@ -133,24 +137,11 @@ def get_license_string():
     try:
         with open(license_file) as f:
             license_string = f.readline().strip()
-            signature = base64.b64decode(f.readline())
-        pubkey = rsa.PublicKey.load_pkcs1(base64.b64decode(_pk), "DER")
-        rsa.verify(license_string, signature, pubkey)
-        return license_string
-    except:
-        pass
-
-    license_file = os.path.join(get_oscar_dir(), "bin/oscar")
-    if not os.path.isfile(license_file): return None
-    try:
-        license_string = xattr.get(license_file, "user.oscar.license")
-        license_signature = xattr.get(license_file, "user.oscar.license.signature")
-    except IOError, e:
-        if e.errno != errno.ENODATA: raise e
-        #else
+            signature = f.readline()
+    except IOError:
         return None
 
-    return license_string.decode("utf-8") if verify_license(license_string, license_signature) else None
+    return license_string.decode("utf-8") if verify_license(license_string, signature) else None
 
 def save_license(license_text, license_signature):
     license_file = os.path.join(get_oscar_dir(), "etc/license.txt")

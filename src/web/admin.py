@@ -5,7 +5,7 @@ Created on 2014/08/20
 @author: shimarin
 '''
 
-import os,json,getpass,shutil,tempfile,errno,logging,zipfile,io,time,tarfile,subprocess,stat
+import os,json,getpass,shutil,tempfile,errno,logging,zipfile,io,time,tarfile,subprocess,stat,base64
 import flask
 import oscar,web,samba,init,config,log,sync,truncate,unix
 
@@ -22,6 +22,29 @@ def before_request():
 def index():
     return flask.render_template("admin.html")
 
+@app.route("/info")
+def info():
+    return flask.jsonify({"version":oscar.version, "commit_id":oscar.get_commit_id(), "license":oscar.get_license_string()})
+
+@app.route("/license", methods=['POST','PUT'])
+def license():
+    src = flask.request.json.get("base64")
+    if not src: return "Bad Request", 400
+    try:
+        license_string,license_signature = base64.b64decode(src).split("\n",1)
+    except TypeError:
+        return flask.jsonify({"success":False,"info":"INVALIDBASE64"})
+    except ValueError:
+        return flask.jsonify({"success":False,"info":"NOSIGNATURE"})
+    
+    if not oscar.verify_license(license_string, license_signature):
+        return flask.jsonify({"success":False,"info":"INVALIDSIGNATURE"})
+    #else
+    
+    oscar.save_license(license_string, license_signature)
+    
+    return flask.jsonify({"success":True,"info":None})
+    
 @app.route("/log.zip")
 def log_zip():
     buf = io.BytesIO()
@@ -84,10 +107,15 @@ def share():
 @app.route("/share/<share_name>", methods=['GET'])
 def share_get(share_name):
     shares = samba.get_shares()
-    if share_name not in shares: raise web.NotFound("Share not found")
-    share = shares[share_name]
+    share = shares.get(share_name)
+    if not share: raise web.NotFound("Share not found")
+
+    valid_users, valid_groups = samba.share_valid_users_groups(share)
+
     options = config.get(samba.share_real_path(share))
-    return flask.jsonify({"name":share_name,"comment":share["comment"] if "comment" in share else None,"options":options})
+    return flask.jsonify({"name":share_name,"comment":share.get(u"comment"),"guest_ok":samba.share_guest_ok(share),
+                          "valid_users":valid_users, "valid_groups":valid_groups,
+                           "options":options})
 
 @app.route("/share/<share_name>/create", methods=['POST'])
 def share_create(share_name):
@@ -106,10 +134,12 @@ def share_create(share_name):
     os.mkdir(share_dir)
     init.init(share_dir)
 
-    options = params[u"options"] if u"options" in params else {}
-    config.put_all(share_dir, options)
-    rst = samba.register_share(share_name, share_dir, comment=params[u"comment"] if u"comment" in params else None, guest_ok=True, writable=True,
-                               force_user=getpass.getuser(),veto_files = ".oscar")
+    rst = samba.register_share(share_name, share_dir, comment=params.get(u"comment"), guest_ok=params.get(u"guest_ok"), writable=True,
+                               force_user=getpass.getuser(),veto_files = ".oscar",valid_users=params.get("valid_users"),valid_groups=params.get("valid_groups"))
+
+    if rst:
+        options = params[u"options"] if u"options" in params else {}
+        config.put_all(share_dir, options)
 
     return flask.jsonify({"success":rst, "info":None})
 
@@ -121,12 +151,13 @@ def share_update(share_name):
     if not os.path.isdir(share_path): return flask.jsonify({"success":False, "info":"DIRNOTEXIST"})
 
     params = flask.request.json
-    comment = params[u"comment"] if u"comment" in params else None
-    options = params[u"options"] if u"options" in params else {}
-    config.put_all(share_path, options)
 
-    rst = samba.update_share(share_name, share_path, comment=comment, guest_ok=True, writable=True,
-                               force_user=getpass.getuser(),veto_files = ".oscar")
+    rst = samba.update_share(share_name, share_path, comment=params.get(u"comment"), guest_ok=params.get(u"guest_ok"), writable=True,
+                               force_user=getpass.getuser(),veto_files = ".oscar",valid_users=params.get("valid_users"),valid_groups=params.get("valid_groups"))
+    
+    if rst:
+        config.put_all(share_path, params.get(u"options") or {})
+
     return flask.jsonify({"success":rst, "info":None})
 
 @app.route("/share/<share_name>", methods=['DELETE'])
@@ -280,11 +311,12 @@ def user_delete(user_name):
 
 @app.route("/group")
 def group():
-    return flask.Response(oscar.to_json(unix.groups()),  mimetype='application/json')
+    return flask.Response(oscar.to_json(map(lambda x:{"name":x}, unix.groups())),  mimetype='application/json')
 
 @app.route("/group/<group_name>", methods=['GET'])
 def group_get(group_name):
-    return flask.Response(oscar.to_json(unix.members(group_name)),  mimetype='application/json')
+    logger.debug(unix.members(group_name))
+    return flask.Response(oscar.to_json({"name":group_name, "members":unix.members(group_name)}),  mimetype='application/json')
 
 @app.route("/group/<group_name>/create", methods=['POST'])
 def group_create(group_name):
@@ -293,8 +325,10 @@ def group_create(group_name):
     except unix.OperationFail, e:
         logger.exception("group_create")
         return flask.jsonify({"success":False, "info":e.__class__.__name__})
-    users = flask.request.json
-    for username in users:
+    options = flask.request.json
+    members = options["members"] if "members" in options else []
+
+    for username in members:
         try:
             unix.memberadd(group_name, username)
         except unix.OperationFail:
@@ -304,7 +338,9 @@ def group_create(group_name):
 
 @app.route("/group/<group_name>/update", methods=['POST'])
 def group_update(group_name):
-    users = flask.request.json
+    options = flask.request.json
+    members = options["members"] if "members" in options else []
+        
     try:
         existing_users = unix.members(group_name)
     except unix.GroupDoesNotExist:
@@ -312,13 +348,13 @@ def group_update(group_name):
         return "Group not found", 404
 
     for user_name in existing_users:
-        if user_name not in users:
+        if user_name not in members:
             try:
                 unix.memberdel(group_name, user_name)
             except unix.OperationFail:
                 logger.exception("group_create.memberdel")
         
-    for user_name in users:
+    for user_name in members:
         if user_name not in existing_users:
             try:
                 unix.memberadd(group_name, user_name)

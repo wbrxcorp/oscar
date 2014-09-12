@@ -46,7 +46,7 @@
                 <div class="form-group">
                   <label class="col-sm-2 control-label">ゲストアクセス</label>
                   <div class="col-sm-10">
-                    <div class="checkbox"><label><input type="checkbox" ng-model="guest_ok"> 許可する</label></div>
+                    <div class="checkbox"><label><input type="checkbox" ng-model="share.guest_ok"> 許可する</label></div>
                     <p class="help-block">チェックすると、この共有フォルダには認証なしでアクセスできます</p>
                   </div>
                 </div>
@@ -56,11 +56,11 @@
                     <div class="row">
                       <div class="col-sm-6">
                         <label>ユーザー</label>
-                        <input type="text" class="form-control" ng-disabled="guest_ok" ui-select2="{multiple: true,simple_tags:true,data:users}" ng-model="valid_users">
+                        <input type="text" class="form-control" ng-disabled="share.guest_ok" ui-select2="{multiple: true,simple_tags:true,ajax:{url:'./user',results:users_for_select2}}" ng-model="share.valid_users">
                       </div>
                       <div class="col-sm-6">
                         <label>グループ</label>
-                        <input type="text" class="form-control" ng-disabled="guest_ok" ui-select2="{multiple:true,simple_tags:true,data:groups}" ng-model="valid_groups">
+                        <input type="text" class="form-control" ng-disabled="share.guest_ok" ui-select2="{multiple:true,simple_tags:true,ajax:{url:'./group',results:groups_for_select2}}" ng-model="share.valid_groups">
                       </div>
                     </div>
                     <p class="help-block">この共有フォルダにアクセス可能なユーザーとグループを指定してください。共に空欄の場合は認証されたユーザー全てがこの共有フォルダにアクセスできます</p>
@@ -148,7 +148,7 @@
       </div>
     </tab>
 
-    <tab heading="ユーザー" ng-controller="UserAdminController">
+    <tab heading="ユーザーとグループ" ng-controller="UserAdminController">
       <h3>ユーザー</h3>
       <div class="row">
         <div class="col-sm-3">
@@ -222,13 +222,78 @@
           </div>
         </div>
       </div>
+      <h3>グループ</h3>
+      <div class="row">
+        <div class="col-sm-3">
+          <tabset vertical="true" type="pills">
+            <tab heading="新しく作成" select="new_group_selected()">
+              <tab-heading><span class="glyphicon glyphicon-plus"></span> 新しく作成</tab-heading>
+            </tab>
+            <tab ng-repeat="group in groups" select="group_selected(group.name)">
+              <tab-heading><span class="glyphicon glyphicon-tag"></span> {{group.name}}</tab-heading>
+            </tab>
+          </tabset>
+        </div>
+        <div class="col-sm-9">
+          <div class="panel panel-default">
+            <div class="panel-heading">
+              <h4 class="panel-title">グループの<span ng-show="group.new">新規作成</span><span ng-show="!group.new">設定</span></h4>
+            </div>
+            <div class="panel-body">
+              <form name="groupForm" class="form-horizontal">
+                <div class="form-group">
+                  <label class="col-sm-2 control-label">グループ名</label>
+                  <div class="col-sm-10">
+                    <input ng-show="group.new" type="text" class="form-control" name="name" ng-model="group.name" 
+                      ng-required="true" ng-minlength="2" ng-maxlength="20" ng-pattern="/^[a-zA-Z0-9][a-zA-Z0-9_-]*[a-zA-Z0-9]$/">
+                    <p ng-show="!group.new" class="form-control-static">{{group.name}}</p>
+                    <span class="text-danger" ng-show="groupForm.name.$error.required">入力必須です</span>
+                    <span class="text-danger" ng-show="groupForm.name.$error.maxlength">最大20文字まで</span>
+                    <span class="text-danger" ng-show="groupForm.name.$error.pattern">2文字に満たないか、使用できない文字が含まれています</span>
+                  </div>
+                </div>
+                <div class="form-group">
+                  <label class="col-sm-2 control-label">メンバー</label>
+                  <div class="col-sm-10">
+                    <input type="text" class="form-control" ui-select2="{multiple: true,simple_tags:true,ajax:{url:'./user',results:member_candidates_for_select2}}" ng-model="group.members">
+                  </div>
+                  {{member_candidates}}
+                </div>
+                <div class="form-group">
+                  <div class="col-sm-offset-2 col-sm-5">
+                    <button ng-show="group.new" class="btn btn-primary" ng-disabled="!groupForm.$valid" ng-click="create_group()">新規作成</button>
+                    <button ng-show="!group.new" class="btn btn-primary" ng-disabled="!groupForm.$valid || groupForm.$pristine" ng-click="update_group()">設定を更新</button>
+                    <button ng-show="!group.new" class="btn btn-default" ng-disabled="groupForm.$pristine" ng-click="group_selected(group.name)">リセット</button>
+                  </div>
+                  <div class="col-sm-5"><span class="text-danger" ng-show="group.errorMessage">{{group.errorMessage}}</span></div>
+                </div>
+             </form>
+            </div>
+          </div>
+          <div class="panel panel-default" ng-show="!group.new">
+            <div class="panel-heading">
+              <h4 class="panel-title">グループに対する操作</h4>
+            </div>
+            <div class="panel-body">
+              <button class="btn btn-danger" ng-click="delete_group(group.name)">グループを削除</button>
+              <span class="text-danger" ng-show="group.opErrorMessage">{{group.opErrorMessage}}</span>
+            </div>
+          </div>
+        </div>
+      </div>
     </tab>
     <tab heading="その他" ng-controller="EtcAdminController">
       <h3>システムログのダウンロード</h3>
-      <p><a href="log.zip" class="btn btn-default">zip形式でダウンロード</a></p>
+      <p><a href="log.zip" class="btn btn-primary">zip形式でダウンロード</a></p>
       <h3>ソフトウェアのアップデート</h3>
+      <p>現在のバージョン: <strong>{{info.version}}</strong> <span ng-show="info.commit_id">(コミットID: {{info.commit_id | limitTo: 8}})</span></p>
       <p>アップデートファイル: <input type="file" ng-file-select="onFileSelect($files)"></p>
       <p>{{message}}</p>
+      <h3>ライセンスの登録</h3>
+      <p>現在のライセンス: <strong>{{info.license}}</strong></p>
+      <textarea ng-model="license" cols="80" rows="5"></textarea><br>
+      <p>{{license_message}}</p>
+      <button ng-disabled="!license" ng-click="saveLicense()" class="btn btn-primary">ライセンスをセット</button>
     </tab>
     
   </tabset>

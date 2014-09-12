@@ -171,11 +171,24 @@ angular.module("Oscar", ["ngResource","ngSanitize","ui.bootstrap","ui.select2", 
         });
     }
     
-    $scope.users = [{id:"shimarin",text:"shimarin"},{id:"sorimashi",text:"sorimashi"},{id:"hoge",text:"hoge"}];  // TODO: load
-    $scope.groups = [{id:"executive",text:"executive"},{id:"staff",text:"staff"},{id:"guest",text:"guest"}]; // TODO: load
-    
+    $scope.users_for_select2 = function(data) {
+        var users = [];
+        angular.forEach(data, function(user) {
+            this.push({id:user.name, text:user.name});
+        }, users)
+        return {results:users};
+    }
+
+    $scope.groups_for_select2 = function(data) {
+        var groups = [];
+        angular.forEach(data, function(group) {
+            this.push({id:group.name, text:group.name});
+        }, groups)
+        return {results:groups};
+    }
+
     $scope.new_share_selected = function() {
-        $scope.share = {new:true,options:{synctime:new Date(1970,1,1,00,00,00)}};
+        $scope.share = {new:true,guest_ok:true,options:{synctime:new Date(1970,1,1,00,00,00)}};
         $scope.valid_users = [];
         $scope.valid_groups = [];
     }
@@ -195,9 +208,11 @@ angular.module("Oscar", ["ngResource","ngSanitize","ui.bootstrap","ui.select2", 
     }
     $scope.create_share = function() {
         $scope.share.errorMessage = null;
-        // TODO: show progress modal to disable user operations
         var params = {
             comment: $scope.share.comment,
+            guest_ok: $scope.share.guest_ok,
+            valid_users: $scope.share.valid_users,
+            valid_groups: $scope.share.valid_groups,
             options: {
                 syncorigin: $scope.share.options.syncorigin,
                 syncday: $scope.share.options.syncday,
@@ -220,13 +235,16 @@ angular.module("Oscar", ["ngResource","ngSanitize","ui.bootstrap","ui.select2", 
     $scope.update_share = function() {
         $scope.share.errorMessage = null;
         var params = {
-                comment: $scope.share.comment,
-                options: {
-                    syncorigin: $scope.share.options.syncorigin,
-                    syncday: $scope.share.options.syncday,
-                    synctime: formatDate($scope.share.options.synctime, "HH:mm")
-                }
-            };
+            comment: $scope.share.comment,
+            guest_ok: $scope.share.guest_ok,
+            valid_users: $scope.share.valid_users,
+            valid_groups: $scope.share.valid_groups,
+            options: {
+                syncorigin: $scope.share.options.syncorigin,
+                syncday: $scope.share.options.syncday,
+                synctime: formatDate($scope.share.options.synctime, "HH:mm")
+            }
+        };
         share.save({name:$scope.share.name,action:"update"},params, function(result) {
             if (result.success) {
                 $scope.load_shares();
@@ -297,18 +315,42 @@ angular.module("Oscar", ["ngResource","ngSanitize","ui.bootstrap","ui.select2", 
 .controller("UserAdminController", ["$scope","$resource","$filter","messageBox","progressBar", 
                                 function($scope, $resource,$filter,messageBox,progressBar) {
     var user = $resource("./user/:name/:action");
+    var group = $resource("./group/:name/:action");
+
     $scope.load_users = function() {
-        $scope.users = user.query({}, function() {
+        $scope.users = user.query({}, function(data) {
             $scope.new_user_selected();
         });
+    }
+    $scope.load_groups = function() {
+        $scope.groups = group.query({}, function() {
+            $scope.new_group_selected();
+        });
+    }
+    
+    $scope.member_candidates_for_select2 = function(data) {
+        var member_candidates = [];
+        angular.forEach(data, function(user) {
+            this.push({id:user.name, text:user.name});
+        }, member_candidates)
+        return {results:member_candidates};
     }
     
     $scope.new_user_selected = function() {
         $scope.user = {new:true,admin:false};
     }
+    $scope.new_group_selected = function() {
+        $scope.group = {new:true,members:[]};
+    }
+
     $scope.user_selected = function(user_name) {
         $scope.user = user.get({name:user_name}, function() {
             $scope.userForm.$setPristine();
+        });
+    }
+    $scope.group_selected = function(group_name) {
+        $scope.group = group.get({name:group_name}, function() {
+            $scope.groupForm.$setPristine();
         });
     }
     
@@ -321,6 +363,16 @@ angular.module("Oscar", ["ngResource","ngSanitize","ui.bootstrap","ui.select2", 
             }
         });
     }
+    $scope.create_group = function() {
+        group.save({name:$scope.group.name, action:"create"}, {members:$scope.group.members}, function(result) {
+           if (result.success) {
+               $scope.load_groups();
+           } else {
+               $scope.group.errorMessage = result.info;
+           }
+        });
+    }
+    
     $scope.update_user = function() {
         user.save({name:$scope.user.name, action:"update"}, {admin:$scope.user.admin,password:$scope.user.password}, function(result) {
             if (result.success) {
@@ -330,6 +382,16 @@ angular.module("Oscar", ["ngResource","ngSanitize","ui.bootstrap","ui.select2", 
             }
         });
     }
+    $scope.update_group = function() {
+        group.save({name:$scope.group.name, action:"update"}, {members:$scope.group.members}, function(result) {
+            if (result.success) {
+                $scope.load_groups();
+            } else {
+                $scope.group.errorMessage = result.info;
+            }
+        });
+    }
+    
     $scope.delete_user = function() {
         messageBox("ユーザー " + $scope.user.name + " を本当に削除しますか?",{danger:true, cancel:true}, function() {
             user.delete({name:$scope.user.name}, {}, function(result) {
@@ -341,12 +403,32 @@ angular.module("Oscar", ["ngResource","ngSanitize","ui.bootstrap","ui.select2", 
             })
         });
     }
-    
+
+    $scope.delete_group = function() {
+        messageBox("グループ " + $scope.group.name + " を本当に削除しますか?",{danger:true, cancel:true}, function() {
+            group.delete({name:$scope.group.name}, {}, function(result) {
+                if (result.success) {
+                    $scope.load_groups();
+                } else {
+                    $scope.group.opErrorMessage = result.info;
+                }
+            })
+        });
+    }
+
     $scope.load_users();
+    $scope.load_groups();
 }])
 .controller("EtcAdminController", ["$scope","$resource","$upload", "messageBox","progressBar", 
                                 function($scope, $resource,$upload, messageBox,progressBar) {
-    $scope.message = "開発元から提供されているアップデートファイルを選択してください。"
+    
+    var info = $resource("./info");
+    var license = $resource("./license");
+    $scope.info = info.get();
+
+    $scope.message = "開発元から提供されているアップデートファイルを選択してください。";
+    $scope.license_message = "ライセンス情報をコピー＆ペーストしてください。"
+     
     $scope.onFileSelect = function($files) {
         for (var i = 0; i < $files.length && i < 1; i++) {
             var file = $files[i];
@@ -364,10 +446,35 @@ angular.module("Oscar", ["ngResource","ngSanitize","ui.bootstrap","ui.select2", 
                 } else {
                     $scope.message = "アップデート失敗: " + data.info
                 }
+                $scope.info = info.get();
             }).error(function() {
                 pb.close()
-                console.log("通信エラーが発生しました");
+                $scope.message = "通信エラーが発生しました";
             });
+        }
+    }
+    
+    function saveLicense(license_base64) {
+        license.save({}, {base64: license_base64}, function(result) {
+            if (result.success) {
+                $scope.license_message = "ライセンス情報をセットしました。";
+                $scope.license = null;
+                $scope.info = info.get();
+            } else {
+                $scope.license_message = "ライセンス情報が正しくないか、送信に失敗しました。" + result.info;
+            }
+        }, function() {
+            $scope.license_message = "通信エラーが発生しました";
+        });
+    }
+    
+    $scope.saveLicense = function() {
+        if ($scope.info.license) {
+            messageBox("現在のライセンス情報を上書きします。よろしいですか?",{danger:true, cancel:true}, function() {
+                saveLicense($scope.license);
+            });
+        } else {
+            saveLicense($scope.license);
         }
     }
 }])

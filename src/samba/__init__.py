@@ -1,3 +1,4 @@
+# -*- coding:utf-8 mode:python -*-
 import os,collections,shutil,re,tempfile,logging,pwd,grp
 import configobj,pypassdb.passdb
 
@@ -64,11 +65,25 @@ def share_real_path(share, path = None):
     if path.startswith('/'): path = re.sub(r'^/+', "", path)
     return os.path.join(share_path, path)
 
-def _valid_users_str(valid_users, valid_groups):
-    if not valid_users and not valid_groups: return None
-    valid_users_str = " ".join(valid_users) if valid_users else ""
-    valid_groups_str = " ".join(map(lambda x:"@" + x, valid_groups)) if valid_groups else ""
-    return " ".join([valid_users_str, valid_groups_str])
+def share_valid_users_groups(share):
+    if "valid users" not in share: return ([],[])
+    valid_users = []
+    valid_groups = []
+    for item in share["valid users"]:
+        if re.search(r'^[@\+]+', item) is not None:
+            valid_groups.append(re.sub(r'^[@\+]+', "", item))
+        elif item != "":
+            valid_users.append(item)
+    #logger.debug(valid_users)
+    return (valid_users,valid_groups)
+
+def share_guest_ok(share):
+    return share.as_bool("guest ok")
+
+def _valid_users(valid_users, valid_groups):
+    #logger.debug(valid_users)
+    if not valid_users and not valid_groups: return None # [], []の場合もNoneを返す
+    return (valid_users or []) + map(lambda x:"@" + x, valid_groups or [])
 
 def register_share(share_name,share_dir, force_user=None, comment=None, guest_ok=None, writable=None, veto_files=None, valid_users=None, valid_groups=None):
     if isinstance(share_name, str): share_name = share_name.decode("utf-8")
@@ -80,8 +95,7 @@ def register_share(share_name,share_dir, force_user=None, comment=None, guest_ok
     if veto_files: section[u"veto files"] = veto_files
     if writable: section[u"writable"] = "yes" if writable else "no"
     if guest_ok: section[u"guest ok"] = "yes" if guest_ok else "no"
-    valid_users_str = _valid_users_str(valid_users, valid_groups)
-    if valid_users_str: section[u"valid users"] = valid_users_str
+    if (valid_users or valid_groups) and not share_guest_ok(section): section[u"valid users"] = _valid_users(valid_users, valid_groups)
     if share_name in smbconf: return False
     #else
     smbconf[share_name] = section
@@ -109,8 +123,7 @@ def update_share(share_name, share_dir, force_user=None, comment=None, guest_ok=
     update_or_delete(section, u"veto files", veto_files)
     update_or_delete(section, u"writable", writable)
     update_or_delete(section, u"guest ok", guest_ok)
-    valid_users_str = _valid_users_str(valid_users, valid_groups)
-    update_or_delete(section, u"valid users", valid_users_str)
+    update_or_delete(section, u"valid users", _valid_users(valid_users, valid_groups) if (valid_users or valid_groups) and not share_guest_ok(section) else None)
     _save_smbconf(smbconf)
     return True
 

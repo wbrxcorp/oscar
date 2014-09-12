@@ -66,7 +66,7 @@
       {%block contents%}{%endblock%}
 
       <div class="footer" style="border-top: 1px solid #eee;margin-top: 40px;padding-top: 40px;padding-bottom: 40px;">
-        <p>&copy; <a href="http://www.walbrix.com/jp/">Walbrix Corporation</a> 2013-2014</p>
+        <p>&copy; <a href="http://www.walbrix.com/jp/">Walbrix Corporation</a> 2014</p>
       </div>
     </div>
   </body>
@@ -77,14 +77,16 @@
       <h4 class="modal-title"><span class="glyphicon glyphicon-info-sign"></span> このシステムについて</h4>
     </div>
     <div class="modal-body">
-      <p><img src="{{ url_for('static', filename='img/walbrix_logo.png')}}"/></p>
-      <p>開発元: ワルブリックス株式会社</p>
+      <h3>全文検索NAS</h3>
+      <p>バージョン: {%endraw%}{{g.version}} {%if g.commit_id%}(コミットID:{{g.commit_id[:8]}}){%endif%}{%raw%}</p>
+      <p>ライセンス: <strong>{%endraw%}{%if g.license%}{{g.license}}{%else%}試用版{%endif%}{%raw%}</strong></p>
+      <p>開発元: {%endraw%}<img src="{{ url_for('static', filename='img/walbrix_logo.png')}}" height="20"/>{%raw%} ワルブリックス株式会社</p>
     </div>
     <div class="modal-footer">
       <button type="button" class="btn btn-primary" ng-click="$close()">閉じる</button>
     </div>
   </script>
-  <script type="text/ng-template" id="iehelp.html">
+  <script type="text/ng-template" id="iehelp.html">{%endraw%}
     <div class="modal-header">
       <button type="button" class="close" ng-click="$dismiss()" aria-hidden="true">&times;</button>
       <h4 class="modal-title">Internet Explorerのセキュリティ設定</h4>
@@ -102,7 +104,7 @@
     <div class="modal-footer">
       <button type="button" class="btn btn-primary" ng-click="$close()">閉じる</button>
     </div>
-  </script>
+  {%raw%}</script>
   <script type="text/ng-template" id="messagebox.html">
     <div class="modal-body">
       <h3>{{message}}</h3>
