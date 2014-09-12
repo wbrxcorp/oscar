@@ -15,7 +15,7 @@ src/web/static/js/oscar.min.js: src/web/static/js/oscar.js
 lib.tar: compile src/web/static/js/oscar.min.js
 	tar cvf $@ --exclude='*.py' --exclude='*~' --exclude='test' --exclude='web/static/js/test' --exclude='oscar.js' -C src .
 
-etc/commit-id.txt:
+etc/commit-id.txt: .git/index
 	mkdir -p etc
 	git rev-parse HEAD > $@
 
