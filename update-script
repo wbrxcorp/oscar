@@ -1,5 +1,6 @@
 #!/bin/sh
-sudo /etc/init.d/oscar-watch restart || exit 1
-sudo /etc/init.d/oscar-sched restart || exit 1
+sudo service apache2 restart || exit 1
+sudo service oscar-watch restart || exit 1
+sudo service oscar-sched restart || exit 1
 echo "Update done"
 
