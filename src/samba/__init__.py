@@ -103,6 +103,7 @@ def register_share(share_name,share_dir, force_user=None, comment=None, guest_ok
     #else
     smbconf[share_name] = section
     _save_smbconf(smbconf)
+    reload_samba()
     return True
 
 def update_share(share_name, share_dir, force_user=None, comment=None, guest_ok=None, writable=None, veto_files=None, valid_users=None, valid_groups=None):
@@ -128,6 +129,7 @@ def update_share(share_name, share_dir, force_user=None, comment=None, guest_ok=
     update_or_delete(section, u"guest ok", guest_ok)
     update_or_delete(section, u"valid users", _valid_users(valid_users, valid_groups) if (valid_users or valid_groups) and not share_guest_ok(section) else None)
     _save_smbconf(smbconf)
+    reload_samba()
     return True
 
 def unregister_share(share_name):
@@ -137,6 +139,7 @@ def unregister_share(share_name):
     if share_name not in smbconf: return False
     del smbconf[share_name]
     _save_smbconf(smbconf)
+    reload_samba()
     return True
 
 ##################
