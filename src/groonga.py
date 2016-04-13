@@ -1,8 +1,10 @@
 # -*- coding: utf-8 -*-
 import os,atexit,json,logging,contextlib
+import gi
 
 local_lib = "/usr/local/lib" if os.path.isdir("/usr/local/lib") else "/usr/local/lib64"
 os.environ['GI_TYPELIB_PATH'] = '%s/girepository-1.0' % local_lib
+gi.require_version('Groonga', '1.0')
 import gi.repository.Groonga    #@UnresolvedImport
 
 gi.repository.Groonga.init()
