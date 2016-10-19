@@ -91,17 +91,19 @@ def _valid_users(valid_users, valid_groups):
 def register_share(share_name,share_dir, force_user=None, comment=None, guest_ok=None, writable=None, veto_files=None, valid_users=None, valid_groups=None):
     if isinstance(share_name, str): share_name = share_name.decode("utf-8")
     if share_name in _reserved_sections: return False
+    #else
     smbconf = _load_smbconf()
-    section = {u"path":share_dir.decode("utf-8")}
+    if share_name in smbconf: return False
+    #else
+    smbconf[share_name] = {u"path":share_dir.decode("utf-8")}
+    section = smbconf[share_name]
+    section.setdefault(u"guest ok", "no") # この後に呼ばれる share_guest_ok のため
     if force_user: section[u"force user"] = force_user
     if comment: section[u"comment"] = comment
     if veto_files: section[u"veto files"] = veto_files
-    if writable: section[u"writable"] = "yes" if writable else "no"
-    if guest_ok: section[u"guest ok"] = "yes" if guest_ok else "no"
+    if writable is not None: section[u"writable"] = "yes" if writable else "no"
+    if guest_ok is not None: section[u"guest ok"] = "yes" if guest_ok else "no"
     if (valid_users or valid_groups) and not share_guest_ok(section): section[u"valid users"] = _valid_users(valid_users, valid_groups)
-    if share_name in smbconf: return False
-    #else
-    smbconf[share_name] = section
     _save_smbconf(smbconf)
     reload_samba()
     return True
@@ -113,7 +115,7 @@ def update_share(share_name, share_dir, force_user=None, comment=None, guest_ok=
     if share_name not in smbconf: return False
     section = smbconf[share_name]
     section[u"path"] = share_dir.decode("utf-8")
-    
+
     def update_or_delete(section, key, value):
         if value is not None:
             if isinstance(value, bool):
@@ -121,7 +123,7 @@ def update_share(share_name, share_dir, force_user=None, comment=None, guest_ok=
             section[key] = value
         elif key in section:
             del section[key]
-    
+
     update_or_delete(section, u"force user", force_user)
     update_or_delete(section, u"comment", comment)
     update_or_delete(section, u"veto files", veto_files)
@@ -166,7 +168,7 @@ def get_users():
     return users
 
 def get_user(user_name):
-    user_name = ensure_str(user_name).lower()  
+    user_name = ensure_str(user_name).lower()
     users = get_users()
     if user_name not in users: return None
     return users[user_name]
@@ -185,7 +187,7 @@ def register_user(user_name, password, acct_desc = None):
     return True
 
 def update_user(user_name, password = None, acct_desc = None):
-    user_name = ensure_str(user_name).lower()  
+    user_name = ensure_str(user_name).lower()
     with _open_passdb() as passdb:
         if not user_name in passdb: return False
         user_record = passdb[user_name]
@@ -197,7 +199,7 @@ def update_user(user_name, password = None, acct_desc = None):
     return True
 
 def remove_user(user_name):
-    user_name = ensure_str(user_name).lower()  
+    user_name = ensure_str(user_name).lower()
     with _open_passdb() as passdb:
         if user_name not in passdb: return False
         del passdb[user_name]
@@ -207,7 +209,7 @@ def remove_user(user_name):
     return True
 
 def check_user_password(user_name, password):
-    user_name = ensure_str(user_name).lower()  
+    user_name = ensure_str(user_name).lower()
     with _open_passdb() as passdb:
         if user_name not in passdb: return False
         return passdb[user_name].check_password(password)
@@ -221,7 +223,7 @@ def share_user_access_permitted(share, user_name):
     user_name = ensure_str(user_name).lower()
     valid_users = share.get("valid users")
     if valid_users is None: return True
-    
+
     if user_name in valid_users:
         return True
 
