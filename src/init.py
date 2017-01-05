@@ -54,7 +54,7 @@ schema = [
     "column_create --table Log --name category --type ShortText",
     "column_create --table Log --name content --type ShortText",
     
-    "table_create --name LogTime --flags TABLE_PAT_KEY --key_type Int64",
+    "table_create --name LogTime --flags TABLE_PAT_KEY --key_type Time",
     "column_create --table LogTime --name time --flags COLUMN_INDEX --type Log --source time",
 
     "table_create --name LogCategory --flags TABLE_PAT_KEY --key_type ShortText",
