@@ -11,3 +11,6 @@ shares
 .settings
 oscar.min.js
 
+/target/
+Cargo.lock
+
